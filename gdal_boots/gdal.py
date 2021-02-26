@@ -9,11 +9,17 @@ from functools import cached_property
 import affine
 import numpy as np
 
-from osgeo import gdal, ogr
+from osgeo import gdal, ogr, osr
 from osgeo.osr import (
     SpatialReference,
     CoordinateTransformation
 )
+from .utils import GeometryBuilder
+
+try:
+    import orjson as json
+except ImportError:
+    import json
 
 
 DTYPE_TO_GDAL = {
@@ -26,6 +32,10 @@ DTYPE_TO_GDAL = {
     np.float64: gdal.GDT_Float64,
     int:        gdal.GDT_Int32,
     float:      gdal.GDT_Float64,
+}
+GDAL_TO_DTYPE = {
+    gdal_dtype: dtype
+    for dtype, gdal_dtype in DTYPE_TO_GDAL.items()
 }
 gdal.UseExceptions()
 
@@ -99,7 +109,13 @@ class RasterDataset:
     @property
     def shape(self):
         ds = self.ds
+        if ds.RasterCount == 1:
+            return (ds.RasterYSize, ds.RasterXSize)
         return (ds.RasterCount, ds.RasterYSize, ds.RasterXSize)
+
+    @property
+    def dtype(self):
+        return GDAL_TO_DTYPE[self.ds.GetRasterBand(1).DataType]
 
     def bounds(self, epsg=None):
         _, y_size, x_size = self.shape
@@ -215,6 +231,13 @@ class RasterDataset:
         for in_band_num, band_num in enumerate(bands_range):
             band = ds.GetRasterBand(band_num + 1)
             band.WriteArray(img[in_band_num], xstart, ystart)
+
+    def add_band(self, value: np.array = None):
+        ds = self.ds
+        ds.AddBand()
+        if value:
+            band = ds.GetRasterBand(ds.RasterCount)
+            band.WriteArray(value)
 
     def __enter__(self):
         return self
@@ -335,18 +358,35 @@ class RasterDataset:
 
         return VectorDataset(ds_geom)
 
-    def warp(self, bbox, resampling=Resampling.near):
+    def warp(self, bbox, bbox_epsg=4326, resampling=Resampling.near):
         ds = gdal.Warp('',
             self.ds,
             dstSRS=self.geoinfo.srs,
             xRes=self.geoinfo.transform.a,
             yRes=-self.geoinfo.transform.e,
             outputBounds=bbox,
-            outputBoundsSRS='epsg:4326',
+            outputBoundsSRS='epsg:{}'.format(bbox_epsg),
             resampleAlg=resampling.value,
             format="MEM"
         )
         return type(self)(ds)
+
+    def crop_by_geometry(self, geometry, epsg=4326):
+        geojson = json.dumps(geometry).decode()
+        geometry = GeometryBuilder.create(geojson)
+
+        bbox = geometry.GetEnvelope()
+        warped_ds = self.warp(
+            (bbox[0], bbox[2], bbox[1], bbox[3]),
+            bbox_epsg=epsg
+        )
+        vect_ds = VectorDataset.open(geojson)
+        mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
+        mask_img = mask_ds[:]
+        img = warped_ds[:].copy()
+        img[mask_img == 0] = 0
+        warped_ds[:] = img
+        return warped_ds
 
 
 class VectorDataset:
@@ -403,7 +443,7 @@ class VectorDataset:
         out_ds.Destroy()
 
     @classmethod
-    def from_string(cls, ):
+    def from_string(cls, s):
         # driver = ogr.GetDriverByName('Memory')
         # self.ds = driver.CreateDataSource('memory')
         gdal.VectorTranslate('', df_geom_str, format='Memory', srcSRS=to_crs, dstSRS=to_crs)
@@ -417,8 +457,22 @@ class VectorDataset:
         return self.Layers(self.ds)
 
     def rasterize(self, shape, dtype, geoinfo):
+
         rasters = RasterDataset.create(shape, dtype, geoinfo=geoinfo)
-        gdal.RasterizeLayer(rasters.ds, [1], self.ds.GetLayer(), burn_values=[1], options=['ALL_TOUCHED=TRUE'])
+        if len(shape) == 3:
+            bands = list(range(1, shape[0] + 1))
+            burn_values = [1] * shape[0]
+        else:
+            bands = [1]
+            burn_values = [1]
+
+        gdal.RasterizeLayer(
+            rasters.ds,
+            bands=bands,
+            layer=self.ds.GetLayer(),
+            burn_values=burn_values,
+            options=['ALL_TOUCHED=TRUE']
+        )
         return rasters
 
     def simplify(self):

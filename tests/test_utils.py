@@ -1,5 +1,6 @@
 import json
 import shapely.geometry
+import numpy as np
 
 from gdal_boots.gdal import (
     RasterDataset,
@@ -12,16 +13,16 @@ from gdal_boots.options import (
 
 
 def test_read_by_geom(minsk_polygon):
-
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
-        warped_ds = ds.warp(bbox)
-        vect_ds = VectorDataset.open(json.dumps(minsk_polygon))
-        mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
+        rgba_ds = RasterDataset.create((4, *ds.shape), ds.dtype, ds.geoinfo)
+        rgba_ds[0,:] = ds[:]
+        rgba_ds[1,:] = ds[:]
+        rgba_ds[2,:] = ds[:]
+        # no transparency
+        rgba_ds[3,:] = np.iinfo(rgba_ds.dtype).max
 
-        mask_img = mask_ds[:]
-        img = warped_ds[:].copy()
-        img[mask_img == 0] = 0
-        warped_ds[:,:] = img
-        warped_ds.to_file('warped_by_mask.tif', GTiff())
+        cropped_ds = rgba_ds.crop_by_geometry(minsk_polygon)
+        cropped_ds.to_file('cropped_by_polygon.png', PNG())
+        cropped_ds.to_file('warped_by_mask.tif', GTiff())

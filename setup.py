@@ -1,16 +1,21 @@
 import os
-import datetime as dt
+import re
 
 from setuptools import setup, find_packages, find_namespace_packages
-from sentinel2 import __version__
+
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
+def get_version():
+    with open(os.path.join('gdal_boots', '__init__.py')) as f:
+        return re.search(r'__version__ = ["\'](.*?)[\'"]', f.read()).group(1)
+
+
 setup(
     name='gdal-boots',
-    version=__version__,
+    version=get_version(),
     author='Alexander Verbitsky',
     author_email='habibutsu@gmail.com',
     maintainer='Alexander Verbitsky',
