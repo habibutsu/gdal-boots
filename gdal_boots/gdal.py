@@ -245,7 +245,7 @@ class RasterDataset:
     def __exit__(self, exc_type, exc, exc_tb):
         self.ds.FlushCache()
         if self._mem_id:
-            gdal.Unlink(self.mem_id)
+            gdal.Unlink(self._mem_id)
         self.ds = None
 
     @classmethod
