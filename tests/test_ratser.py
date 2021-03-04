@@ -146,7 +146,6 @@ def test_warp(minsk_polygon):
 
 
 def test_write():
-    from folium.raster_layers import ImageOverlay
 
     img = np.ones((3, 5, 5))
     img[0] = 1
@@ -160,4 +159,8 @@ def test_write():
     ds[:,0] = 1
     # not supported
     # ds[:,0,:] = img[:,0]
+    ds[1:3,1:3,:] = 1
     ds[(0,2), 2:5, 2:5] = img[(0, 2), :3, :3]
+
+    ds = RasterDataset.create(shape=(10, 10))
+    ds[2:5,2:5] = 1

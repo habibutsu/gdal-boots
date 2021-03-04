@@ -34,6 +34,7 @@ geoinfo = GeoInfo(
 )
 with RasterDataset.create(img.shape, img.dtype, geoinfo) as ds:
     ds[:,:] = img
+    ds[100:500, 100:500] = 128
     ds.to_file('image.jp2', JP2OpenJPEG(quality=50))
 ```
 

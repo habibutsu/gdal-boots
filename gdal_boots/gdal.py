@@ -171,7 +171,11 @@ class RasterDataset:
         # match
         if isinstance(selector, tuple):
             if len(selector) == 2:
-                bands_selector, y_selector = selector
+                if len(self.shape) == 3:
+                    bands_selector, y_selector = selector
+                else:
+                    bands_selector = 0
+                    y_selector, x_selector = selector
             elif len(selector) == 3:
                 bands_selector, y_selector, x_selector = selector
         else:
@@ -271,6 +275,9 @@ class RasterDataset:
         else:
             bands = 1
             height, width = shape
+
+        if isinstance(dtype, np.dtype):
+            dtype = dtype.type
 
         driver = gdal.GetDriverByName('MEM')
         ds = driver.Create('', width, height, bands, DTYPE_TO_GDAL[dtype])
