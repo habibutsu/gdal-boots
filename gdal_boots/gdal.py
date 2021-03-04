@@ -51,6 +51,11 @@ class GeoInfo:
         srs.ImportFromEPSG(self.epsg)
         return srs
 
+    def epsg_from_wkt(self, wkt):
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(wkt)
+        self.epsg = int(srs.GetAttrValue('AUTHORITY',1))
+
 
 class Resampling(Enum):
     near = 'near'
@@ -243,7 +248,11 @@ class RasterDataset:
         return self
 
     def __exit__(self, exc_type, exc, exc_tb):
-        self.ds.FlushCache()
+        self.__del__()
+
+    def __del__(self):
+        if self.ds:
+            self.ds.FlushCache()
         if self._mem_id:
             gdal.Unlink(self._mem_id)
         self.ds = None
