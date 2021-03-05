@@ -259,6 +259,7 @@ class RasterDataset:
             self.ds.FlushCache()
         if self._mem_id:
             gdal.Unlink(self._mem_id)
+            self._mem_id = None
         self.ds = None
 
     @classmethod
