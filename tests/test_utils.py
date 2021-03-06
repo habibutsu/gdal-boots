@@ -1,5 +1,3 @@
-import json
-import rasterio
 import shapely.geometry
 import numpy as np
 
