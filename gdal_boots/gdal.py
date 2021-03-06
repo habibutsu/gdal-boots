@@ -114,7 +114,9 @@ class RasterDataset:
     @property
     def shape(self):
         ds = self.ds
+        # it's tradeoff between convenience of using and explicitness
         if ds.RasterCount == 1:
+            # choose convenience
             return (ds.RasterYSize, ds.RasterXSize)
         return (ds.RasterCount, ds.RasterYSize, ds.RasterXSize)
 
@@ -123,7 +125,11 @@ class RasterDataset:
         return GDAL_TO_DTYPE[self.ds.GetRasterBand(1).DataType]
 
     def bounds(self, epsg=None):
-        _, y_size, x_size = self.shape
+        shape = self.shape
+        if len(shape) == 2:
+            y_size, x_size = shape
+        else:
+            _, y_size, x_size = shape
         geoinfo = self.geoinfo
         transform = geoinfo.transform
 
@@ -167,16 +173,19 @@ class RasterDataset:
         ds = self.ds
         x_selector = None
         y_selector = None
-
+        shape = self.shape
         # match
         if isinstance(selector, tuple):
             if len(selector) == 2:
-                if len(self.shape) == 3:
+                # implicitly selection
+                if len(shape) == 3:
                     bands_selector, y_selector = selector
                 else:
                     bands_selector = 0
                     y_selector, x_selector = selector
             elif len(selector) == 3:
+                if len(shape) == 2:
+                    raise IndexError('too many indices for array')
                 bands_selector, y_selector, x_selector = selector
         else:
             bands_selector = selector

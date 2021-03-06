@@ -1,12 +1,10 @@
 import json
+import rasterio
 import shapely.geometry
 import numpy as np
 
-from gdal_boots.gdal import (
+from gdal_boots import (
     RasterDataset,
-    VectorDataset
-)
-from gdal_boots.options import (
     PNG,
     GTiff
 )
