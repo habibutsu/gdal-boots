@@ -412,7 +412,7 @@ class RasterDataset:
         img = warped_ds[:].copy()
         img[mask_img == 0] = 0
         warped_ds[:] = img
-        return warped_ds
+        return warped_ds, mask_img
 
 
 class VectorDataset:

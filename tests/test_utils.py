@@ -19,6 +19,6 @@ def test_read_by_geom(minsk_polygon):
         # no transparency
         rgba_ds[3,:] = np.iinfo(rgba_ds.dtype).max
 
-        cropped_ds = rgba_ds.crop_by_geometry(minsk_polygon)
+        cropped_ds, mask = rgba_ds.crop_by_geometry(minsk_polygon)
         cropped_ds.to_file('cropped_by_polygon.png', PNG())
         cropped_ds.to_file('warped_by_mask.tif', GTiff())
