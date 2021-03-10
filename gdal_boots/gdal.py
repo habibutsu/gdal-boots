@@ -384,9 +384,9 @@ class RasterDataset:
 
         return VectorDataset(ds_geom)
 
-    def warp(self, bbox, bbox_epsg=4326, resampling=Resampling.near):
+    def warp(self, bbox, bbox_epsg=4326, resampling=Resampling.near, extra_ds=[]):
         ds = gdal.Warp('',
-            self.ds,
+            [other.ds for other in extra_ds] + [self.ds],
             dstSRS=self.geoinfo.srs,
             xRes=self.geoinfo.transform.a,
             yRes=-self.geoinfo.transform.e,
@@ -397,14 +397,15 @@ class RasterDataset:
         )
         return type(self)(ds)
 
-    def crop_by_geometry(self, geometry, epsg=4326):
+    def crop_by_geometry(self, geometry, epsg=4326, extra_ds=[]):
         geojson = json.dumps(geometry).decode()
         geometry = GeometryBuilder.create(geojson)
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
-            bbox_epsg=epsg
+            bbox_epsg=epsg,
+            extra_ds=extra_ds
         )
         vect_ds = VectorDataset.open(geojson)
         mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
