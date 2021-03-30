@@ -311,15 +311,18 @@ class RasterDataset:
         ds.FlushCache()
 
     @classmethod
-    def from_bytes(cls, data):
+    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly):
         mem_id = f'/vsimem/{uuid4()}'
         gdal.FileFromMemBuffer(mem_id, data)
-        ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
+        ds = gdal.OpenEx(mem_id, open_flag)
         self = cls(ds)
         self._mem_id = mem_id
         return self
 
     def to_bytes(self, options):
+        if not self.ds:
+            raise ValueError('dataset was closed')
+
         driver = options.driver
         ext = options.driver_extensions[0]
         mem_id = f'/vsimem/{uuid4()}.{ext}'

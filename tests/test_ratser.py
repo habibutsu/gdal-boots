@@ -2,6 +2,7 @@ import tempfile
 import pyproj
 import affine
 import shapely.geometry
+import gdal
 
 from gdal_boots.gdal import (
     RasterDataset,
@@ -46,6 +47,11 @@ def test_open_memory(lena_512_png):
 
         png_data = ds.to_bytes(PNG(zlevel=9))
         assert len(png_data) == 476208
+
+        tiff_data = ds.to_bytes(GTiff(zlevel=9))
+
+    with RasterDataset.from_bytes(tiff_data, open_flag=gdal.OF_RASTER|gdal.GA_Update) as ds:
+        assert ds.shape
 
 
 def test_create():
