@@ -1,5 +1,4 @@
 import tempfile
-import pyproj
 import affine
 import shapely.geometry
 import gdal
@@ -146,9 +145,15 @@ def test_warp(minsk_polygon):
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
         warped_ds = ds.warp(bbox)
+        assert (warped_ds.geoinfo.transform.a, -warped_ds.geoinfo.transform.e) == (10, 10)
 
         with tempfile.NamedTemporaryFile(suffix='.tiff') as fd:
             warped_ds.to_file(fd.name, GTiff())
+
+        warped_ds_r100 = ds.warp(bbox, resolution=(100, 100))
+
+        assert (warped_ds_r100.geoinfo.transform.a, -warped_ds_r100.geoinfo.transform.e) == (100, 100)
+        assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
 
 
 def test_write():
