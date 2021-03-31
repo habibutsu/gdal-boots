@@ -198,6 +198,9 @@ def test_crop_by_geometry():
         cropped_ds, mask = ds1.crop_by_geometry(geometry, extra_ds=[ds2])
         cropped_ds.to_file(f'{tmp_dir}/cropped.png', PNG())
 
+        cropped_ds_r100, _ = ds1.crop_by_geometry(geometry, extra_ds=[ds2], resolution=(100, 100))
+        assert all((np.array(cropped_ds.shape) / 10).round() == cropped_ds_r100.shape)
+
 
 def test_write():
 
