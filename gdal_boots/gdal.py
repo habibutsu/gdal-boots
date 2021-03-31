@@ -410,7 +410,7 @@ class RasterDataset:
             (bbox[0], bbox[2], bbox[1], bbox[3]),
             bbox_epsg=epsg,
             extra_ds=extra_ds,
-            xy_res=resolution
+            resolution=resolution
         )
         vect_ds = VectorDataset.open(geojson)
         mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)

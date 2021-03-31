@@ -156,6 +156,49 @@ def test_warp(minsk_polygon):
         assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
 
 
+def test_crop_by_geometry():
+    ds1 = RasterDataset.create(
+        shape=(1134, 1134),
+        dtype=np.uint8,
+        geoinfo=GeoInfo(
+            epsg=32720,
+            transform=affine.Affine(
+                10.000000005946216, 0.0, 554680.0000046358,
+                0.0, -10.000000003180787, 6234399.99998708
+            )
+        )
+    )
+    ds1[:] = np.random.randint(64, 128, (1134, 1134), np.uint8)
+
+    ds2 = RasterDataset.create(
+        shape=(1134, 1134),
+        dtype=np.uint8,
+        geoinfo=GeoInfo(
+            epsg=32720,
+            transform=affine.Affine(
+                10.000000005946317, 0.0, 554680.0000046354,
+                0.0, -10.00000000318243, 6245339.999990689
+            )
+        )
+    )
+    ds2[:] = np.random.randint(128, 192, (1134, 1134), np.uint8)
+
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[
+            [-62.403073310852044, -34.02648590051866],
+            [-62.40650653839111, -34.03818674708322],
+            [-62.39936113357544, -34.03943142302355],
+            [-62.3962926864624, -34.02765961447532],
+            [-62.403073310852044, -34.02648590051866]
+        ]]
+    }
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cropped_ds, mask = ds1.crop_by_geometry(geometry, extra_ds=[ds2])
+        cropped_ds.to_file(f'{tmp_dir}/cropped.png', PNG())
+
+
 def test_write():
 
     img = np.ones((3, 5, 5))
