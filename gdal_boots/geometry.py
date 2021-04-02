@@ -1,4 +1,4 @@
-from osgeo import gdal, ogr
+from osgeo import ogr, osr
 
 
 class GeometryBuilder:
@@ -37,3 +37,16 @@ class GeometryBuilder:
             multipolygon.AddGeometry(polygon)
 
         return multipolygon
+
+
+def transform(geometry, from_epsg, to_epsg):
+    from_src = osr.SpatialReference()
+    from_src.ImportFromEPSG(from_epsg)
+    from_src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+    to_crs = osr.SpatialReference()
+    to_crs.ImportFromEPSG(to_epsg)
+    to_crs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+
+    transformation = osr.CoordinateTransformation(from_src, to_crs)
+    geometry.Transform(transformation)

@@ -14,7 +14,7 @@ from osgeo.osr import (
     SpatialReference,
     CoordinateTransformation
 )
-from .utils import GeometryBuilder
+from .geometry import GeometryBuilder
 
 try:
     import orjson as json
@@ -387,11 +387,14 @@ class RasterDataset:
 
         return VectorDataset(ds_geom)
 
-    def warp(self, bbox, bbox_epsg=4326, resampling=Resampling.near, extra_ds=[], resolution=(None, None)):
+    def warp(
+        self, bbox, bbox_epsg=4326, resampling=Resampling.near, extra_ds=[], resolution=(None, None),
+        out_epsg=None
+    ):
         x_res, y_res = resolution
         ds = gdal.Warp('',
             [other.ds for other in extra_ds] + [self.ds],
-            dstSRS=self.geoinfo.srs,
+            dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
             xRes=x_res or self.geoinfo.transform.a,
             yRes=y_res or -self.geoinfo.transform.e,
             outputBounds=bbox,
@@ -401,18 +404,25 @@ class RasterDataset:
         )
         return type(self)(ds)
 
-    def crop_by_geometry(self, geometry, epsg=4326, extra_ds=[], resolution=(None, None)):
-        geojson = json.dumps(geometry).decode()
-        geometry = GeometryBuilder.create(geojson)
+    def crop_by_geometry(
+        self, geometry, epsg=4326, extra_ds=[], resolution=(None, None),
+        out_epsg=None,
+    ):
+        if not isinstance(geometry, ogr.Geometry):
+            geometry = GeometryBuilder.create(geometry)
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
             bbox_epsg=epsg,
             extra_ds=extra_ds,
-            resolution=resolution
+            resolution=resolution,
+            out_epsg=out_epsg
         )
-        vect_ds = VectorDataset.open(geojson)
+        vect_ds = VectorDataset.open(geometry.ExportToJson())
+        if epsg != 4326:
+            vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(epsg)
+
         mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
         mask_img = mask_ds[:]
         img = warped_ds[:].copy()
@@ -438,7 +448,6 @@ class VectorDataset:
 
     @classmethod
     def open(cls, filename, open_flag=gdal.GA_ReadOnly):
-        # ds = ogr.Open(filename, open_flag)
         ds = gdal.OpenEx(filename, gdal.OF_VECTOR | open_flag)
         return cls(ds)
 

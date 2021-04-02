@@ -14,6 +14,10 @@ from gdal_boots.options import (
     JP2OpenJPEG,
     GPKG
 )
+from gdal_boots.geometry import (
+    GeometryBuilder,
+    transform
+)
 
 import numpy as np
 
@@ -29,8 +33,10 @@ def test_open_file(lena_512_png):
 
         png_data = ds.to_bytes(PNG(zlevel=9))
 
-        with open('test.png', 'wb') as fd:
-            fd.write(png_data)
+        with tempfile.NamedTemporaryFile(suffix='.png') as fd:
+
+            with open(fd.name, 'wb') as fd:
+                fd.write(png_data)
 
         assert len(png_data) == 476208
 
@@ -64,7 +70,7 @@ def test_create():
     )
 
     with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
-        ds[:,:,:] = img
+        ds[:,:] = img
 
         with tempfile.NamedTemporaryFile(suffix='.png') as fd:
             ds.to_file(fd.name, PNG())
@@ -93,7 +99,7 @@ def test_vectorize():
     )
 
     with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
-        ds[:,:,:] = img
+        ds[:,:] = img
 
         v_ds = ds.to_vector()
         assert v_ds
@@ -135,8 +141,8 @@ def test_memory():
     for feature in layer:
         feature.SetField('SOMETHING',1)
 
-    # import ipdb; ipdb.set_trace()
-    gdal.VectorTranslate('test_2.gpkg', srcdb, format='GPKG')
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        gdal.VectorTranslate(f'{tmp_dir}/test.gpkg', srcdb, format='GPKG')
 
 
 def test_warp(minsk_polygon):
@@ -200,6 +206,20 @@ def test_crop_by_geometry():
 
         cropped_ds_r100, _ = ds1.crop_by_geometry(geometry, extra_ds=[ds2], resolution=(100, 100))
         assert all((np.array(cropped_ds.shape) / 10).round() == cropped_ds_r100.shape)
+
+    # crop by 3857
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        geometry_3857 = GeometryBuilder.create(geometry)
+        transform(geometry_3857, 4326, 3857)
+        # geometry_3857.FlattenTo2D()
+        cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)
+        cropped_ds.to_file(f'{tmp_dir}/cropped_by3857.tiff', GTiff())
+
+    # crop to 3857
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cropped_ds_3857, mask = ds1.crop_by_geometry(geometry, out_epsg=3857)
+        assert cropped_ds_3857.geoinfo.epsg == 3857
+        cropped_ds.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
 
 
 def test_write():
