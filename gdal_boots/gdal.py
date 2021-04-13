@@ -1,3 +1,4 @@
+import imp
 import os
 from uuid import uuid4
 from enum import Enum
@@ -54,7 +55,19 @@ class GeoInfo:
     def epsg_from_wkt(self, wkt):
         srs = osr.SpatialReference()
         srs.ImportFromWkt(wkt)
-        self.epsg = int(srs.GetAttrValue('AUTHORITY',1))
+        # int(srs.GetAttrValue('AUTHORITY',1))
+
+        self.epsg = int(srs.GetAuthorityCode(None))
+
+    @classmethod
+    def from_dataset(cls, ds):
+        # srs = ds.GetGCPSpatialRef()
+        srs = ds.GetSpatialRef()
+        epsg = int(srs.GetAuthorityCode(None))
+        return cls(
+            epsg=epsg,
+            transform=affine.Affine.from_gdal(*ds.GetGeoTransform())
+        )
 
 
 class Resampling(Enum):
@@ -95,12 +108,7 @@ class RasterDataset:
 
     @property
     def geoinfo(self):
-        ds = self.ds
-        return GeoInfo(
-            # crs=ds.GetProjection(),
-            epsg=int(ds.GetSpatialRef().GetAttrValue('AUTHORITY',1)),
-            transform=affine.Affine.from_gdal(*ds.GetGeoTransform())
-        )
+        return GeoInfo.from_dataset(self.ds)
 
     @geoinfo.setter
     def geoinfo(self, geoinfo):
@@ -124,7 +132,18 @@ class RasterDataset:
     def dtype(self):
         return GDAL_TO_DTYPE[self.ds.GetRasterBand(1).DataType]
 
+    def as_type(self, dtype):
+        ds = type(self).create(self.shape, dtype, self.geoinfo)
+        ds[:] = self[:].astype(dtype)
+        return ds
+
+    # def __repr__(self):
+    #     return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} epsg:{self.geoinfo.epsg}>'
+
     def bounds(self, epsg=None):
+        # gcps = self.ds.GetGCPs()
+        # [[gcp.GCPX, gcp.GCPY] for gcp in gcps]
+
         shape = self.shape
         if len(shape) == 2:
             y_size, x_size = shape
@@ -157,8 +176,9 @@ class RasterDataset:
         return bounds
 
     def __getitem__(self, slices: Tuple[slice, slice, slice]):
-        mem_arr = self.ds.GetVirtualMemArray()
-        return mem_arr.__getitem__(slices)
+        # mem_arr = self.ds.GetVirtualMemArray()
+        arr = self.ds.ReadAsArray()
+        return arr.__getitem__(slices)
 
     def __setitem__(
         self,
@@ -405,8 +425,14 @@ class RasterDataset:
         return type(self)(ds)
 
     def crop_by_geometry(
-        self, geometry, epsg=4326, extra_ds=[], resolution=(None, None),
+        self,
+        geometry,
+        epsg=4326,
+        extra_ds=[],
+        resolution=(None, None),
         out_epsg=None,
+        resampling=Resampling.near,
+        apply_mask=True,
     ):
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder.create(geometry)
@@ -417,17 +443,19 @@ class RasterDataset:
             bbox_epsg=epsg,
             extra_ds=extra_ds,
             resolution=resolution,
-            out_epsg=out_epsg
+            out_epsg=out_epsg,
+            resampling=resampling
         )
         vect_ds = VectorDataset.open(geometry.ExportToJson())
         if epsg != 4326:
             vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(epsg)
 
         mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
-        mask_img = mask_ds[:]
-        img = warped_ds[:].copy()
-        img[mask_img == 0] = 0
-        warped_ds[:] = img
+        mask_img = mask_ds[:].copy()
+        if apply_mask:
+            img = warped_ds[:].copy()
+            img[mask_img == 0] = 0
+            warped_ds[:] = img
         return warped_ds, mask_img
 
 
