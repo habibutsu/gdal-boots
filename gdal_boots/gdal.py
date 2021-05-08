@@ -344,8 +344,11 @@ class RasterDataset:
         ds.FlushCache()
 
     @classmethod
-    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly):
+    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
         mem_id = f'/vsimem/{uuid4()}'
+        if ext:
+            mem_id = f'{mem_id}.{ext}'
+
         gdal.FileFromMemBuffer(mem_id, data)
         ds = gdal.OpenEx(mem_id, open_flag)
         self = cls(ds)
