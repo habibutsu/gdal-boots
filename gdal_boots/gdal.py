@@ -5,7 +5,20 @@ from enum import Enum
 from numbers import Number
 from typing import Union, Tuple, overload
 from dataclasses import dataclass
-from functools import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from functools import lru_cache
+
+    def cached_property(fn):
+
+        @property
+        @lru_cache(maxsize=None)
+        def wrapper(self):
+            return fn(self)
+
+        return wrapper
+
 
 import affine
 import numpy as np
