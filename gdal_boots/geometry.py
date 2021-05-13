@@ -49,4 +49,6 @@ def transform(geometry, from_epsg, to_epsg):
     to_crs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
     transformation = osr.CoordinateTransformation(from_src, to_crs)
-    geometry.Transform(transformation)
+    result_geometry = geometry.Clone()
+    result_geometry.Transform(transformation)
+    return result_geometry

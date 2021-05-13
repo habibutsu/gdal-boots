@@ -133,6 +133,14 @@ class RasterDataset:
             ds.SetGeoTransform(geoinfo.transform.to_gdal())
 
     @property
+    def meta(self):
+        return self.ds.GetMetadata()
+
+    @meta.setter
+    def meta(self, value: dict):
+        self.ds.SetMetadata(value)
+
+    @property
     def shape(self):
         ds = self.ds
         # it's tradeoff between convenience of using and explicitness
@@ -187,6 +195,9 @@ class RasterDataset:
             return bounds
 
         return bounds
+
+    def set_bounds(self, geometry, epsg=None):
+        pass
 
     def __getitem__(self, slices: Tuple[slice, slice, slice]):
         # mem_arr = self.ds.GetVirtualMemArray()
@@ -467,12 +478,12 @@ class RasterDataset:
             vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(epsg)
 
         mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
-        mask_img = mask_ds[:].copy()
+        mask_img = mask_ds[:]
         if apply_mask:
             img = warped_ds[:].copy()
             img[mask_img == 0] = 0
             warped_ds[:] = img
-        return warped_ds, mask_img
+        return warped_ds, mask_ds
 
 
 class VectorDataset:

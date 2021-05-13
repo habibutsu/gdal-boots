@@ -2,6 +2,7 @@ import tempfile
 import affine
 import shapely.geometry
 import gdal
+import numpy as np
 
 from gdal_boots.gdal import (
     RasterDataset,
@@ -160,6 +161,18 @@ def test_warp(minsk_polygon):
 
         assert (warped_ds_r100.geoinfo.transform.a, -warped_ds_r100.geoinfo.transform.e) == (100, 100)
         assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
+
+
+def test_bounds():
+
+    with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
+        assert ds.bounds() == [
+            [499980.0, 5890200.0],
+            [609780.0, 6000000.0],
+        ]
+        assert np.all(np.array(ds.bounds(4326)).round(4) == [
+                                        [53.1612, 26.9997],
+                                        [54.1364, 28.6803]])
 
 
 def test_crop_by_geometry():
