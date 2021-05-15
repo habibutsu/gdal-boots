@@ -1,5 +1,8 @@
-import imp
+import io
 import os
+import affine
+import numpy as np
+
 from uuid import uuid4
 from enum import Enum
 from numbers import Number
@@ -19,16 +22,15 @@ except ImportError:
 
         return wrapper
 
-
-import affine
-import numpy as np
-
 from osgeo import gdal, ogr, osr
 from osgeo.osr import (
     SpatialReference,
     CoordinateTransformation
 )
-from .geometry import GeometryBuilder
+from .geometry import (
+    GeometryBuilder,
+    transform as geometry_transform
+)
 
 try:
     import orjson as json
@@ -138,7 +140,7 @@ class RasterDataset:
 
     @meta.setter
     def meta(self, value: dict):
-        self.ds.SetMetadata(value)
+        self.ds.SetMetadata(*['{}={}'.format(k, v) for k, v in value.items()])
 
     @property
     def shape(self):
@@ -179,25 +181,32 @@ class RasterDataset:
         yb2 = yb1 + transform.e * y_size
 
         bounds = [
-            [min(xb1, xb2), min(yb1, yb2)],
-            [max(xb1, xb2), max(yb1, yb2)],
+            (min(xb1, xb2), min(yb1, yb2)),
+            (max(xb1, xb2), max(yb1, yb2)),
         ]
         if epsg and epsg != geoinfo.epsg:
-            srs = SpatialReference()
-            srs.ImportFromEPSG(epsg)
-            transform = CoordinateTransformation(geoinfo.srs, srs)
-            geom = ogr.Geometry(ogr.wkbLineString)
-            for point in bounds:
-                geom.AddPoint_2D(*point)
-            geom.Transform(transform)
-            bounds = geom.GetPoints(2)
-            geom.Destroy()
+            geometry = GeometryBuilder.create_line_string(bounds)
+            geometry_upd = geometry_transform(geometry, geoinfo.epsg, epsg)
+            geometry.Destroy()
+
+            bounds = geometry_upd.GetPoints(2)
+            geometry_upd.Destroy()
             return bounds
 
         return bounds
 
-    def set_bounds(self, geometry, epsg=None):
-        pass
+    def set_bounds(self, coords, epsg=None):
+        x, y = np.array(coords).T
+        x_size, y_size = self.shape
+        res_x = (x.max() - x.min()) / x_size
+        rex_y = (y.max() - y.min()) / y_size
+        self.geoinfo = GeoInfo(
+            epsg=epsg,
+            transform=affine.Affine(
+                res_x, 0.0, x.min(),
+                0.0, -rex_y, y.max()
+            )
+        )
 
     def __getitem__(self, slices: Tuple[slice, slice, slice]):
         # mem_arr = self.ds.GetVirtualMemArray()
@@ -317,6 +326,7 @@ class RasterDataset:
 
     @classmethod
     def open(cls, filename, open_flag=gdal.OF_RASTER):
+
         ds = gdal.OpenEx(filename, open_flag)
         obj = cls(ds)
         obj.filename = filename
@@ -355,11 +365,26 @@ class RasterDataset:
         ds.FlushCache()
 
     @classmethod
-    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
+    def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
         mem_id = f'/vsimem/{uuid4()}'
         if ext:
             mem_id = f'{mem_id}.{ext}'
 
+        f = gdal.VSIFOpenL(mem_id, 'wb')
+        for chunk in iter(lambda: stream.read(1024), b''):
+            gdal.VSIFWriteL(chunk, 1, len(chunk), f)
+        gdal.VSIFCloseL(f)
+
+        ds = gdal.OpenEx(mem_id, open_flag)
+        self = cls(ds)
+        self._mem_id = mem_id
+        return self
+
+    @classmethod
+    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
+        mem_id = f'/vsimem/{uuid4()}'
+        if ext:
+            mem_id = f'{mem_id}.{ext}'
         gdal.FileFromMemBuffer(mem_id, data)
         ds = gdal.OpenEx(mem_id, open_flag)
         self = cls(ds)

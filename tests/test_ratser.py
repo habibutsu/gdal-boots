@@ -1,3 +1,4 @@
+import io
 import tempfile
 import affine
 import shapely.geometry
@@ -57,6 +58,10 @@ def test_open_memory(lena_512_png):
         tiff_data = ds.to_bytes(GTiff(zlevel=9))
 
     with RasterDataset.from_bytes(tiff_data, open_flag=gdal.OF_RASTER|gdal.GA_Update) as ds:
+        assert ds.shape
+
+    stream = io.BytesIO(tiff_data)
+    with RasterDataset.from_stream(stream, open_flag=gdal.OF_RASTER|gdal.GA_Update) as ds:
         assert ds.shape
 
 
@@ -167,12 +172,42 @@ def test_bounds():
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
         assert ds.bounds() == [
+            (499980.0, 5890200.0),
+            (609780.0, 6000000.0),
+        ]
+        assert ds.bounds(4326) == [
+            (26.999700868340735, 53.16117354432605),
+            (28.68033586831364, 54.136377428252246)]
+
+    with RasterDataset.create(shape=(100, 100), dtype=np.uint8) as ds:
+        ds[:] = 255
+        ds[1:99,1:99] = 0
+        ds.set_bounds(
+            [
+                (499980.0, 5890200.0),
+                (609780.0, 6000000.0),
+            ],
+            32635
+        )
+        assert ds.bounds(32635) == [
+            (499980.0, 5890200.0),
+            (609780.0, 6000000.0),
+        ]
+        ds.set_bounds(
+            [
+                (26.999700868340735, 53.16117354432605),
+                (28.68033586831364, 54.136377428252246)
+            ],
+            4326
+        )
+        assert ds.bounds() == [
+            (26.999700868340735, 53.16117354432605),
+            (28.68033586831364, 54.136377428252246)
+        ]
+        assert np.array(ds.bounds(32635)).round().tolist() == [
             [499980.0, 5890200.0],
             [609780.0, 6000000.0],
         ]
-        assert np.all(np.array(ds.bounds(4326)).round(4) == [
-                                        [53.1612, 26.9997],
-                                        [54.1364, 28.6803]])
 
 
 def test_crop_by_geometry():
