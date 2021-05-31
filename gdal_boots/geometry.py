@@ -4,7 +4,7 @@ from osgeo import ogr, osr
 class GeometryBuilder:
 
     @classmethod
-    def create(cls, geometry):
+    def create(cls, geometry) -> ogr.Geometry:
         if isinstance(geometry, str):
             return ogr.CreateGeometryFromJson(geometry)
 
@@ -12,7 +12,7 @@ class GeometryBuilder:
         return handler(geometry['coordinates'])
 
     @classmethod
-    def create_polygon(cls, coordinates):
+    def create_polygon(cls, coordinates) -> ogr.Geometry:
         polygon = ogr.Geometry(ogr.wkbPolygon)
         for ring_coords in coordinates:
             ring = ogr.Geometry(ogr.wkbLinearRing)
@@ -22,14 +22,14 @@ class GeometryBuilder:
         return polygon
 
     @classmethod
-    def create_line_string(cls, coordinates):
+    def create_line_string(cls, coordinates) -> ogr.Geometry:
         line = ogr.Geometry(ogr.wkbLineString)
         for point in coordinates:
             line.AddPoint(*point)
         return line
 
     @classmethod
-    def create_multipolygon(cls, coordinates):
+    def create_multipolygon(cls, coordinates) -> ogr.Geometry:
         multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
 
         for polygon_coordinates in coordinates:

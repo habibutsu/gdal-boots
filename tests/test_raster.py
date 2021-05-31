@@ -1,9 +1,11 @@
+import imp
 import io
 import tempfile
 import affine
 import shapely.geometry
 import gdal
 import numpy as np
+import json
 
 from gdal_boots.gdal import (
     RasterDataset,
@@ -18,7 +20,7 @@ from gdal_boots.options import (
 )
 from gdal_boots.geometry import (
     GeometryBuilder,
-    transform
+    transform as geometry_transform
 )
 
 import numpy as np
@@ -168,16 +170,83 @@ def test_warp(minsk_polygon):
         assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
 
 
+def test_fast_warp():
+
+    with open('tests/fixtures/35UNV_field_small.geojson') as fd:
+        test_field = json.load(fd)
+        geometry_4326 = GeometryBuilder.create(test_field)
+
+    def _get_bbox(epsg):
+        utm_geometry = geometry_transform(geometry_4326, 4326, epsg)
+        return utm_geometry.GetEnvelope()
+
+
+    with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
+
+        bbox = _get_bbox(ds.geoinfo.epsg)
+
+        with tempfile.NamedTemporaryFile(prefix='10m_', suffix='.tiff') as fd:
+            ds_warp = ds.fast_warp(bbox)
+            ds_warp.to_file(fd.name, GTiff())
+
+            assert ds_warp.shape == (8, 9)
+            assert np.all(
+                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509130., 5946120.]])
+            )
+
+
+    with RasterDataset.open('tests/fixtures/extra/B05_20m.jp2') as ds:
+        bbox = _get_bbox(ds.geoinfo.epsg)
+
+        with tempfile.NamedTemporaryFile(prefix='20m_', suffix='.tiff') as fd:
+            ds_warp = ds.fast_warp(bbox)
+            ds_warp.to_file(fd.name, GTiff())
+
+            assert ds_warp
+            assert np.all(
+                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509140., 5946120.]])
+            )
+
+    with RasterDataset.open('tests/fixtures/extra/B09_60m.jp2') as ds:
+
+        bbox = _get_bbox(ds.geoinfo.epsg)
+
+        with tempfile.NamedTemporaryFile(prefix='60m_', suffix='.tiff') as fd:
+            ds_warp = ds.fast_warp(bbox)
+            ds_warp.to_file(fd.name, GTiff())
+
+            assert ds_warp.shape == (2, 2)
+            assert np.all(
+                ds_warp.bounds() == np.array([[ 509040., 5946000.], [ 509160., 5946120.]])
+            )
+
+        ds_10m = ds.warp(
+            ds.bounds().reshape(-1),
+            ds.geoinfo.epsg,
+            resolution=(10, 10),
+        )
+
+        with tempfile.NamedTemporaryFile(prefix='60m_', suffix='.tiff') as fd:
+            ds_warp = ds_10m.fast_warp(bbox)
+            ds_warp.to_file(fd.name, GTiff())
+
+            assert ds_warp.shape == (8, 9)
+            assert np.all(
+                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509130., 5946120.]])
+            )
+
+
 def test_bounds():
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
-        assert ds.bounds() == [
+        assert np.all(ds.bounds() == [
             (499980.0, 5890200.0),
             (609780.0, 6000000.0),
-        ]
-        assert ds.bounds(4326) == [
+        ])
+        assert np.all(ds.bounds(4326) == [
             (26.999700868340735, 53.16117354432605),
             (28.68033586831364, 54.136377428252246)]
+        )
 
     with RasterDataset.create(shape=(100, 100), dtype=np.uint8) as ds:
         ds[:] = 255
@@ -189,10 +258,10 @@ def test_bounds():
             ],
             32635
         )
-        assert ds.bounds(32635) == [
+        assert np.all(ds.bounds(32635) == [
             (499980.0, 5890200.0),
             (609780.0, 6000000.0),
-        ]
+        ])
         ds.set_bounds(
             [
                 (26.999700868340735, 53.16117354432605),
@@ -200,14 +269,14 @@ def test_bounds():
             ],
             4326
         )
-        assert ds.bounds() == [
+        assert np.all(ds.bounds() == [
             (26.999700868340735, 53.16117354432605),
             (28.68033586831364, 54.136377428252246)
-        ]
-        assert np.array(ds.bounds(32635)).round().tolist() == [
+        ])
+        assert np.all(ds.bounds(32635).round() == [
             [499980.0, 5890200.0],
             [609780.0, 6000000.0],
-        ]
+        ])
 
 
 def test_crop_by_geometry():
@@ -258,7 +327,7 @@ def test_crop_by_geometry():
     # crop by 3857
     with tempfile.TemporaryDirectory() as tmp_dir:
         geometry_3857 = GeometryBuilder.create(geometry)
-        transform(geometry_3857, 4326, 3857)
+        geometry_transform(geometry_3857, 4326, 3857)
         # geometry_3857.FlattenTo2D()
         cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)
         cropped_ds.to_file(f'{tmp_dir}/cropped_by3857.tiff', GTiff())

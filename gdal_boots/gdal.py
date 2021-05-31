@@ -25,7 +25,6 @@ except ImportError:
 from osgeo import gdal, ogr, osr
 from osgeo.osr import (
     SpatialReference,
-    CoordinateTransformation
 )
 from .geometry import (
     GeometryBuilder,
@@ -155,6 +154,10 @@ class RasterDataset:
     def dtype(self):
         return GDAL_TO_DTYPE[self.ds.GetRasterBand(1).DataType]
 
+    @property
+    def resolution(self):
+        return np.array([self.geoinfo.transform.a, -self.geoinfo.transform.e])
+
     def as_type(self, dtype):
         ds = type(self).create(self.shape, dtype, self.geoinfo)
         ds[:] = self[:].astype(dtype)
@@ -163,7 +166,7 @@ class RasterDataset:
     # def __repr__(self):
     #     return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} epsg:{self.geoinfo.epsg}>'
 
-    def bounds(self, epsg=None):
+    def bounds(self, epsg=None) -> np.array:
         # gcps = self.ds.GetGCPs()
         # [[gcp.GCPX, gcp.GCPY] for gcp in gcps]
 
@@ -180,9 +183,15 @@ class RasterDataset:
         xb2 = xb1 + transform.a * x_size
         yb2 = yb1 + transform.e * y_size
 
+        min_x = min(xb1, xb2)
+        min_y = min(yb1, yb2)
+        max_x = max(xb1, xb2)
+        max_y = max(yb1, yb2)
         bounds = [
-            (min(xb1, xb2), min(yb1, yb2)),
-            (max(xb1, xb2), max(yb1, yb2)),
+            # lower left
+            (min_x, min_y),
+            # upper right
+            (max_x, max_y),
         ]
         if epsg and epsg != geoinfo.epsg:
             geometry = GeometryBuilder.create_line_string(bounds)
@@ -191,11 +200,10 @@ class RasterDataset:
 
             bounds = geometry_upd.GetPoints(2)
             geometry_upd.Destroy()
-            return bounds
 
-        return bounds
+        return np.array(bounds)
 
-    def set_bounds(self, coords, epsg=None):
+    def set_bounds(self, coords, epsg=None, resolution=None):
         x, y = np.array(coords).T
         x_size, y_size = self.shape
         res_x = (x.max() - x.min()) / x_size
@@ -460,9 +468,16 @@ class RasterDataset:
         return VectorDataset(ds_geom)
 
     def warp(
-        self, bbox, bbox_epsg=4326, resampling=Resampling.near, extra_ds=[], resolution=(None, None),
+        self,
+        bbox,
+        bbox_epsg=4326,
+        resampling=Resampling.near, extra_ds=[],
+        resolution=(None, None),
         out_epsg=None
     ):
+        '''
+            bbox - minX, minY, maxX, maxY
+        '''
         x_res, y_res = resolution
         ds = gdal.Warp('',
             [other.ds for other in extra_ds] + [self.ds],
@@ -476,9 +491,66 @@ class RasterDataset:
         )
         return type(self)(ds)
 
+    def fast_warp(self, bbox, resolution=None) -> 'RasterDataset':
+        '''
+            special case for fast sample from image
+
+            bbox: xmin, xmax, ymin, ymax
+        '''
+        assert len(bbox) == 4
+
+        bounds = self.bounds()
+        if resolution:
+            resolution = np.array(resolution)
+
+        ds_resolution = self.resolution
+
+        bbox = np.array(bbox).reshape(2, 2).T
+        # snap to corners
+        _bbox = (bbox / ds_resolution)
+        _bbox = np.array([np.floor(_bbox[0]), np.ceil(_bbox[1])])
+        _bbox = (_bbox * ds_resolution).astype(np.uint)
+
+        warp_xy = ((_bbox - bounds[0]) / ds_resolution).astype(np.uint)
+        # y coordinates starts from left upper corner
+        warp_xy[:,1] = (self.shape[0] - warp_xy[:,1])[::-1]
+
+        img = self.ds.GetVirtualMemArray()
+        epsg = self.geoinfo.epsg
+
+        warp_img = img[slice(*warp_xy[:,1]), slice(*warp_xy[:,0])]
+
+        if resolution is not None:
+            raise NotImplementedError('not implemented yet')
+            # k = ds_resolution / resolution
+            # warp_img = np.repeat(np.repeat(warp_img, k[0], axis=0), k[1], axis=1)
+            # # so recalulate bbox and crop img to it
+
+            # _bbox_upd = (bbox / resolution)
+            # _bbox_upd = np.array([np.floor(_bbox_upd[0]), np.ceil(_bbox_upd[1])])
+            # _bbox_upd = (_bbox_upd * resolution).astype(np.uint)
+
+            # crop_xy = (np.array(warp_img.shape) - (((_bbox - _bbox_upd) / resolution)[1][::-1])).astype(np.uint)
+            # warp_img = warp_img[:crop_xy[0], :crop_xy[1]]
+            # ds_resolution = resolution
+            # _bbox = _bbox_upd
+
+        ds_warp = RasterDataset.create(
+            shape=warp_img.shape,
+            geoinfo=GeoInfo(
+                epsg=epsg,
+                transform=affine.Affine(
+                    ds_resolution[0], 0.0, _bbox[:, 0].min(),
+                    0.0, -ds_resolution[1], _bbox[:,1].max()
+                )
+            )
+        )
+        ds_warp[:] = warp_img
+        return ds_warp
+
     def crop_by_geometry(
         self,
-        geometry,
+        geometry:Union[dict, ogr.Geometry],
         epsg=4326,
         extra_ds=[],
         resolution=(None, None),
@@ -577,7 +649,7 @@ class VectorDataset:
     def layers(self):
         return self.Layers(self.ds)
 
-    def rasterize(self, shape, dtype, geoinfo):
+    def rasterize(self, shape, dtype, geoinfo, all_touched=True):
 
         rasters = RasterDataset.create(shape, dtype, geoinfo=geoinfo)
         if len(shape) == 3:
@@ -592,7 +664,7 @@ class VectorDataset:
             bands=bands,
             layer=self.ds.GetLayer(),
             burn_values=burn_values,
-            options=['ALL_TOUCHED=TRUE']
+            options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
         )
         return rasters
 
