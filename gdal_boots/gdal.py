@@ -472,13 +472,13 @@ class RasterDataset:
         bbox,
         bbox_epsg=4326,
         resampling=Resampling.near, extra_ds=[],
-        resolution=(None, None),
+        resolution=None,
         out_epsg=None
     ):
         '''
             bbox - minX, minY, maxX, maxY
         '''
-        x_res, y_res = resolution
+        x_res, y_res = resolution if resolution else (None, None)
         ds = gdal.Warp('',
             [other.ds for other in extra_ds] + [self.ds],
             dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
@@ -553,7 +553,7 @@ class RasterDataset:
         geometry:Union[dict, ogr.Geometry],
         epsg=4326,
         extra_ds=[],
-        resolution=(None, None),
+        resolution=None,
         out_epsg=None,
         resampling=Resampling.near,
         apply_mask=True,

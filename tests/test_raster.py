@@ -320,15 +320,14 @@ def test_crop_by_geometry():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cropped_ds, mask = ds1.crop_by_geometry(geometry, extra_ds=[ds2])
         cropped_ds.to_file(f'{tmp_dir}/cropped.png', PNG())
-
         cropped_ds_r100, _ = ds1.crop_by_geometry(geometry, extra_ds=[ds2], resolution=(100, 100))
         assert all((np.array(cropped_ds.shape) / 10).round() == cropped_ds_r100.shape)
 
     # crop by 3857
     with tempfile.TemporaryDirectory() as tmp_dir:
-        geometry_3857 = GeometryBuilder.create(geometry)
-        geometry_transform(geometry_3857, 4326, 3857)
-        # geometry_3857.FlattenTo2D()
+        geometry_4326 = GeometryBuilder.create(geometry)
+        geometry_3857 = geometry_transform(geometry_4326, 4326, 3857)
+        geometry_3857.FlattenTo2D()
         cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)
         cropped_ds.to_file(f'{tmp_dir}/cropped_by3857.tiff', GTiff())
 
@@ -336,7 +335,7 @@ def test_crop_by_geometry():
     with tempfile.TemporaryDirectory() as tmp_dir:
         cropped_ds_3857, mask = ds1.crop_by_geometry(geometry, out_epsg=3857)
         assert cropped_ds_3857.geoinfo.epsg == 3857
-        cropped_ds.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
+        cropped_ds_3857.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
 
 
 def test_write():
