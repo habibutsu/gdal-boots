@@ -119,6 +119,7 @@ class RasterDataset:
         self._mem_id = None
         self.filename = None
         self.creation_options = None
+        self._img = None
 
     @property
     def geoinfo(self):
@@ -498,6 +499,10 @@ class RasterDataset:
             bbox: xmin, xmax, ymin, ymax
         '''
         assert len(bbox) == 4
+        if self._img is None:
+            self._img = self.ds.GetVirtualMemArray()
+
+        img = self._img
 
         bounds = self.bounds()
         if resolution:
@@ -515,7 +520,6 @@ class RasterDataset:
         # y coordinates starts from left upper corner
         warp_xy[:,1] = (self.shape[0] - warp_xy[:,1])[::-1]
 
-        img = self.ds.GetVirtualMemArray()
         epsg = self.geoinfo.epsg
 
         warp_img = img[slice(*warp_xy[:,1]), slice(*warp_xy[:,0])]
