@@ -1,4 +1,4 @@
-import imp
+import os
 import io
 import tempfile
 import affine
@@ -6,6 +6,8 @@ import shapely.geometry
 import gdal
 import numpy as np
 import json
+import pytest
+import tqdm
 
 from gdal_boots.gdal import (
     RasterDataset,
@@ -22,8 +24,7 @@ from gdal_boots.geometry import (
     GeometryBuilder,
     transform as geometry_transform
 )
-
-import numpy as np
+from threadpoolctl import threadpool_limits
 
 np.random.seed(31415926)
 
@@ -178,8 +179,8 @@ def test_fast_warp():
 
     def _get_bbox(epsg):
         utm_geometry = geometry_transform(geometry_4326, 4326, epsg)
-        return utm_geometry.GetEnvelope()
-
+        bbox = utm_geometry.GetEnvelope()
+        return np.array(bbox).reshape(2,2).T.reshape(-1)
 
     with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
 
@@ -193,7 +194,11 @@ def test_fast_warp():
             assert np.all(
                 ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509130., 5946120.]])
             )
+            assert ds_warp.dtype == ds.dtype
 
+            img_warp, geoinfo = ds.fast_warp_as_array(bbox)
+
+            assert np.all(img_warp == ds_warp[:])
 
     with RasterDataset.open('tests/fixtures/extra/B05_20m.jp2') as ds:
         bbox = _get_bbox(ds.geoinfo.epsg)
@@ -357,3 +362,38 @@ def test_write():
 
     ds = RasterDataset.create(shape=(10, 10))
     ds[2:5,2:5] = 1
+
+
+
+@pytest.mark.skipif(
+    not os.getenv('TEST_COMPARE_WARP', ''),
+    reason='skip comparison warp')
+def test_compare_warp_fast_warp():
+
+    np.random.randint(1622825326.8494937)
+
+    with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
+        ds_bounds = ds.bounds()
+
+        size= 100
+        hw_range = np.array([50, 500]) * ds.resolution
+
+        xy = np.array([
+            np.random.randint(ds_bounds[0][0], ds_bounds[1][0] - hw_range[1], size),
+            np.random.randint(ds_bounds[0][1], ds_bounds[1][1] - hw_range[1], size)
+        ])
+        hw = np.array([
+            np.random.randint(*hw_range, size),
+            np.random.randint(*hw_range, size),
+        ])
+
+        bboxes = np.array([xy, xy + hw]).reshape(4, -1).T
+
+        for bbox in tqdm.tqdm(bboxes):
+            ds_warp = ds.fast_warp(bbox)
+
+        for bbox in tqdm.tqdm(bboxes):
+            img_warp, geoinfo = ds.fast_warp_as_array(bbox)
+
+        for bbox in tqdm.tqdm(bboxes):
+            ds_warp = ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)

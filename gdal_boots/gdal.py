@@ -168,6 +168,12 @@ class RasterDataset:
     #     return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} epsg:{self.geoinfo.epsg}>'
 
     def bounds(self, epsg=None) -> np.array:
+        '''
+            return np.array([
+                [x_min, y_min],
+                [x_max, y_max]
+            ])
+        '''
         # gcps = self.ds.GetGCPs()
         # [[gcp.GCPX, gcp.GCPY] for gcp in gcps]
 
@@ -477,7 +483,7 @@ class RasterDataset:
         out_epsg=None
     ):
         '''
-            bbox - minX, minY, maxX, maxY
+            bbox - x_min, y_min, x_max, y_max
         '''
         x_res, y_res = resolution if resolution else (None, None)
         ds = gdal.Warp('',
@@ -485,38 +491,45 @@ class RasterDataset:
             dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
             xRes=x_res or self.geoinfo.transform.a,
             yRes=y_res or -self.geoinfo.transform.e,
-            outputBounds=bbox,
+            outputBounds=bbox,                              # (minX, minY, maxX, maxY)
             outputBoundsSRS='epsg:{}'.format(bbox_epsg),
             resampleAlg=resampling.value,
             format="MEM"
         )
         return type(self)(ds)
 
-    def fast_warp(self, bbox, resolution=None) -> 'RasterDataset':
+    def fast_warp_as_array(self, bbox, resolution=None) -> Tuple[np.array, GeoInfo]:
         '''
             special case for fast sample from image
 
-            bbox: xmin, xmax, ymin, ymax
+            bbox: x_min, y_min, x_max, y_max
         '''
-        assert len(bbox) == 4
+        if not(len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
+            raise ValueError('input bbox should be in format: [x_min, y_min, x_max, y_max]')
+
+        bounds = self.bounds()
+        bbox = np.array(bbox).reshape(2, 2)
+        if not (np.all(bbox[0] > bounds[0]) and np.all(bbox[1] < bounds[1])):
+            raise ValueError('input bbox {} should be in bounds of raster {}'.format(
+                bbox.reshape(-1), bounds.reshape(-1)))
+
         if self._img is None:
             self._img = self.ds.GetVirtualMemArray()
 
         img = self._img
 
-        bounds = self.bounds()
         if resolution:
             resolution = np.array(resolution)
 
         ds_resolution = self.resolution
 
-        bbox = np.array(bbox).reshape(2, 2).T
         # snap to corners
         _bbox = (bbox / ds_resolution)
         _bbox = np.array([np.floor(_bbox[0]), np.ceil(_bbox[1])])
-        _bbox = (_bbox * ds_resolution).astype(np.uint)
+        _bbox = (_bbox * ds_resolution)
 
         warp_xy = ((_bbox - bounds[0]) / ds_resolution).astype(np.uint)
+
         # y coordinates starts from left upper corner
         warp_xy[:,1] = (self.shape[0] - warp_xy[:,1])[::-1]
 
@@ -539,15 +552,24 @@ class RasterDataset:
             # ds_resolution = resolution
             # _bbox = _bbox_upd
 
-        ds_warp = RasterDataset.create(
-            shape=warp_img.shape,
-            geoinfo=GeoInfo(
+        return (
+            warp_img,
+            GeoInfo(
                 epsg=epsg,
                 transform=affine.Affine(
                     ds_resolution[0], 0.0, _bbox[:, 0].min(),
                     0.0, -ds_resolution[1], _bbox[:,1].max()
                 )
             )
+        )
+
+    def fast_warp(self, bbox, resolution=None) -> 'RasterDataset':
+        warp_img, geoinfo = self.fast_warp_as_array(bbox, resolution)
+
+        ds_warp = RasterDataset.create(
+            shape=warp_img.shape,
+            geoinfo=geoinfo,
+            dtype=warp_img.dtype
         )
         ds_warp[:] = warp_img
         return ds_warp

@@ -39,7 +39,7 @@ class GeometryBuilder:
         return multipolygon
 
 
-def transform(geometry, from_epsg, to_epsg):
+def transform(geometry, from_epsg, to_epsg) -> ogr.Geometry:
     from_src = osr.SpatialReference()
     from_src.ImportFromEPSG(from_epsg)
     from_src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)

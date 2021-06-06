@@ -31,6 +31,13 @@ setup(
         'GDAL',
         'affine',
     ),
+    extras_require={
+        'test': [
+            'pytest',
+            'pampy==0.3.*',
+            'threadpoolctl==2.1.*'
+        ],
+    },
     license='MIT',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
