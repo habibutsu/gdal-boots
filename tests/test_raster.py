@@ -375,7 +375,7 @@ def test_compare_warp_fast_warp():
     with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
         ds_bounds = ds.bounds()
 
-        size= 100
+        size= 1000
         hw_range = np.array([50, 500]) * ds.resolution
 
         xy = np.array([
@@ -389,11 +389,12 @@ def test_compare_warp_fast_warp():
 
         bboxes = np.array([xy, xy + hw]).reshape(4, -1).T
 
-        for bbox in tqdm.tqdm(bboxes):
-            ds_warp = ds.fast_warp(bbox)
+        with threadpool_limits(limits=1, user_api='blas'):
+            for bbox in tqdm.tqdm(bboxes):
+                ds_warp = ds.fast_warp(bbox)
 
-        for bbox in tqdm.tqdm(bboxes):
-            img_warp, geoinfo = ds.fast_warp_as_array(bbox)
+            for bbox in tqdm.tqdm(bboxes):
+                img_warp, geoinfo = ds.fast_warp_as_array(bbox)
 
         for bbox in tqdm.tqdm(bboxes):
             ds_warp = ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)

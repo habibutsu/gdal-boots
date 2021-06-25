@@ -140,7 +140,8 @@ class RasterDataset:
 
     @meta.setter
     def meta(self, value: dict):
-        self.ds.SetMetadata(*['{}={}'.format(k, v) for k, v in value.items()])
+        if value:
+            self.ds.SetMetadata(*['{}={}'.format(k, v) for k, v in value.items()])
 
     @property
     def shape(self):
@@ -161,6 +162,7 @@ class RasterDataset:
 
     def as_type(self, dtype):
         ds = type(self).create(self.shape, dtype, self.geoinfo)
+        ds.meta = self.meta
         ds[:] = self[:].astype(dtype)
         return ds
 
