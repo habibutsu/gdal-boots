@@ -75,9 +75,14 @@ class GeoInfo:
 
     @classmethod
     def from_dataset(cls, ds):
-        # srs = ds.GetGCPSpatialRef()
-        srs = ds.GetSpatialRef()
+        try:
+            srs = ds.GetSpatialRef()
+        except AttributeError:
+            # old versions
+            srs = osr.SpatialReference(wkt=ds.GetProjection())
+
         epsg = int(srs.GetAuthorityCode(None))
+        # epsg = int(srs.GetAttrValue('AUTHORITY', 1))
         return cls(
             epsg=epsg,
             transform=affine.Affine.from_gdal(*ds.GetGeoTransform())
