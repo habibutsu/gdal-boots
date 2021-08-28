@@ -212,6 +212,22 @@ class RasterDataset:
 
         return np.array(bounds)
 
+    def bounds_polygon(self, epsg=None):
+        [
+            (min_x, min_y),
+            (max_x, max_y),
+        ] = self.bounds(epsg=epsg)
+
+        polygon = GeometryBuilder.create_polygon([[
+            (min_x, min_y),
+            (max_x, min_y),
+            (max_x, max_y),
+            (min_x, max_y),
+            (min_x, min_y),
+        ]])
+        polygon.SetCoordinateDimension(2)
+        return polygon
+
     def set_bounds(self, coords, epsg=None, resolution=None):
         x, y = np.array(coords).T
         x_size, y_size = self.shape
@@ -602,7 +618,8 @@ class RasterDataset:
         if epsg != 4326:
             vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(epsg)
 
-        mask_ds = vect_ds.rasterize(warped_ds.shape, int, warped_ds.geoinfo)
+        mask_ds = RasterDataset.create(warped_ds.shape, warped_ds.dtype, geoinfo=warped_ds.geoinfo)
+        vect_ds.rasterize(mask_ds)
         mask_img = mask_ds[:]
         if apply_mask:
             img = warped_ds[:].copy()
@@ -611,20 +628,78 @@ class RasterDataset:
         return warped_ds, mask_ds
 
 
-class VectorDataset:
+class Feature:
 
-    class Layers:
+    def __init__(self, feature):
+        self.feature = feature
 
-        def __init__(self, ds):
-            self.ds = ds
+    def __getitem__(self, name: str):
+        return self.feature.items()[name]
 
-        def first(self):
-            self.ds.GetLayerByIndex(0)
+    def keys(self):
+        return self.feature.keys()
 
+    @property
+    def geometry(self):
+        return self.feature.geometry()
+
+
+class Features:
+
+    def __init__(self, layer):
+        self.layer = layer
+
+    def __len__(self):
+        return self.layer.GetFeatureCount()
+
+    def __getitem__(self, idx):
+        return Feature(self.layer.GetFeature(idx))
+
+
+class Layer:
+
+    def __init__(self, layer):
+        self.layer = layer
+
+    @property
+    def name(self):
+        return self.layer.GetName()
+
+    @property
+    def features(self):
+        return Features(self.layer)
+
+
+class Layers:
 
     def __init__(self, ds):
         self.ds = ds
-        self.layers = None
+
+    def first(self):
+        return Layer(self.ds.GetLayerByIndex(0))
+
+    def __getitem__(self, idx):
+        return Layer(self.ds.GetLayerByIndex(idx))
+
+    def __iter__(self):
+        def _iterator():
+            for i in range(len(self)):
+                yield Layer(self.ds.GetLayerByIndex(i))
+
+        return iter(_iterator())
+
+    def __len__(self):
+        return self.ds.GetLayerCount()
+
+
+class VectorDataset:
+
+    # https://livebook.manning.com/book/geoprocessing-with-python/chapter-3/1
+
+    def __init__(self, ds):
+        self.ds = ds
+        # self.layers = None
+        self._mem_id = None
 
     @classmethod
     def open(cls, filename, open_flag=gdal.GA_ReadOnly):
@@ -633,7 +708,18 @@ class VectorDataset:
 
     @classmethod
     def create(cls):
-        pass
+        mem_id = f'/vsimem/{uuid4()}'
+        drv = ogr.GetDriverByName('MEMORY')
+        ds = drv.CreateDataSource(mem_id)
+
+        ds.CreateLayer()
+
+        # gdal.FileFromMemBuffer(mem_id, data)
+        # ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
+        self = cls(ds)
+        self._mem_id = mem_id
+        # ds_ = gdal.VectorTranslate('', ds_mem, format='MEMORY', **ext_args)
+        return self
 
     def to_file(self, filename, options):
         # # No such file or directory
@@ -664,22 +750,23 @@ class VectorDataset:
         out_ds.Destroy()
 
     @classmethod
-    def from_string(cls, s):
+    def from_string(cls, value):
         # driver = ogr.GetDriverByName('Memory')
         # self.ds = driver.CreateDataSource('memory')
-        gdal.VectorTranslate('', df_geom_str, format='Memory', srcSRS=to_crs, dstSRS=to_crs)
+        # gdal.VectorTranslate('', df_geom_str, format='MEMORY', srcSRS=to_crs, dstSRS=to_crs)
+        pass
 
     @classmethod
     def to_string(self):
         pass
 
-    @cached_property
+    # @cached_property
+    @property
     def layers(self):
-        return self.Layers(self.ds)
+        return Layers(self.ds)
 
-    def rasterize(self, shape, dtype, geoinfo, all_touched=True):
-
-        rasters = RasterDataset.create(shape, dtype, geoinfo=geoinfo)
+    def rasterize(self, raster, all_touched=True):
+        shape = raster.shape
         if len(shape) == 3:
             bands = list(range(1, shape[0] + 1))
             burn_values = [1] * shape[0]
@@ -687,14 +774,15 @@ class VectorDataset:
             bands = [1]
             burn_values = [1]
 
-        gdal.RasterizeLayer(
-            rasters.ds,
-            bands=bands,
-            layer=self.ds.GetLayer(),
-            burn_values=burn_values,
-            options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
-        )
-        return rasters
+        for layer in self.layers:
+            gdal.RasterizeLayer(
+                raster.ds,
+                bands=bands,
+                layer=layer.layer,
+                burn_values=burn_values,
+                options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
+            )
+        return raster
 
     def simplify(self):
         pass

@@ -96,6 +96,14 @@ def test_create():
 
             assert len(ds.to_bytes(GTiff())) == len(data)
 
+        with tempfile.NamedTemporaryFile(suffix='.jp2') as fd:
+            ds.to_file(fd.name, JP2OpenJPEG())
+            data = fd.read()
+            assert len(data) == 303410
+            assert data[:6] == b'\x00\x00\x00\x0cjP'
+
+            assert len(ds.to_bytes(JP2OpenJPEG())) == len(data)
+
 
 def test_vectorize():
     img = np.full((1098, 1098), 64, dtype=np.uint8)

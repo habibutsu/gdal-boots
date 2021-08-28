@@ -1,4 +1,6 @@
 {
+    "type": "Feature",
+    "geometry": {
         "type": "Polygon",
         "coordinates": [[
             [
@@ -70,4 +72,8 @@
                 53.97284922869111
             ]
         ]]
+    },
+    "properties": {
+        "name": "Minsk"
     }
+}
