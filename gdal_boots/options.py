@@ -15,7 +15,6 @@ __all__ = (
 
 
 class DriverOptions:
-
     def encode(self):
         return [
             ('='.join([name, str(value.value if isinstance(value, Enum) else value)])).upper()
@@ -55,7 +54,6 @@ class GTiff(DriverOptions):
     '''
 
     class Compress(Enum):
-
         lzw = 'LZW'
         jpeg = 'JPEG'
         packbits = 'PACKBITS'

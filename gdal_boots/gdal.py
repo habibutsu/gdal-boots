@@ -14,6 +14,7 @@ try:
 except ImportError:
     from functools import lru_cache
 
+
     def cached_property(fn):
 
         @property
@@ -34,17 +35,16 @@ try:
 except ImportError:
     import json
 
-
 DTYPE_TO_GDAL = {
-    np.uint8:   gdal.GDT_Byte,
-    np.uint16:  gdal.GDT_UInt16,
-    np.uint32:  gdal.GDT_UInt32,
+    np.uint8: gdal.GDT_Byte,
+    np.uint16: gdal.GDT_UInt16,
+    np.uint32: gdal.GDT_UInt32,
     np.float32: gdal.GDT_Float32,
-    np.int16:   gdal.GDT_Int16,
-    np.int32:   gdal.GDT_Int32,
+    np.int16: gdal.GDT_Int16,
+    np.int32: gdal.GDT_Int32,
     np.float64: gdal.GDT_Float64,
-    int:        gdal.GDT_Int32,
-    float:      gdal.GDT_Float64,
+    int: gdal.GDT_Int32,
+    float: gdal.GDT_Float64,
 }
 GDAL_TO_DTYPE = {
     gdal_dtype: dtype
@@ -55,8 +55,8 @@ gdal.UseExceptions()
 
 @dataclass
 class GeoInfo:
-    epsg:int
-    transform:affine.Affine
+    epsg: int
+    transform: affine.Affine
 
     @property
     def srs(self):
@@ -98,7 +98,7 @@ class Resampling(Enum):
     # average resampling, computes the weighted average of all non-NODATA contributing pixels.
     average = 'average'
     # root mean square / quadratic mean of all non-NODATA contributing pixels (GDAL >= 3.3)
-    rms  = 'rms'
+    rms = 'rms'
     # mode resampling, selects the value which appears most often of all the sampled points.
     mode = 'mode'
     # maximum resampling, selects the maximum value from all non-NODATA contributing pixels.
@@ -401,7 +401,7 @@ class RasterDataset:
         ds.FlushCache()
 
     @classmethod
-    def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
+    def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None):
         mem_id = f'/vsimem/{uuid4()}'
         if ext:
             mem_id = f'{mem_id}.{ext}'
@@ -417,7 +417,7 @@ class RasterDataset:
         return self
 
     @classmethod
-    def from_bytes(cls, data, open_flag=gdal.OF_RASTER|gdal.GA_ReadOnly, ext=None):
+    def from_bytes(cls, data, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None):
         mem_id = f'/vsimem/{uuid4()}'
         if ext:
             mem_id = f'{mem_id}.{ext}'
@@ -485,7 +485,7 @@ class RasterDataset:
         # field = ogr.FieldDefn('field', ogr.OFTInteger)
         # layer.CreateField(field)
 
-        gdal.Polygonize( band, None, layer, -1, [], callback=None )
+        gdal.Polygonize(band, None, layer, -1, [], callback=None)
 
         ds_geom = gdal.VectorTranslate('', mem_id, format='Memory')
         # gdal.VectorTranslate('test.gpkg', ds_geom, format='GPKG')
@@ -508,15 +508,15 @@ class RasterDataset:
         '''
         x_res, y_res = resolution if resolution else (None, None)
         ds = gdal.Warp('',
-            [other.ds for other in extra_ds] + [self.ds],
-            dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
-            xRes=x_res or self.geoinfo.transform.a,
-            yRes=y_res or -self.geoinfo.transform.e,
-            outputBounds=bbox,                              # (minX, minY, maxX, maxY)
-            outputBoundsSRS='epsg:{}'.format(bbox_epsg),
-            resampleAlg=resampling.value,
-            format="MEM"
-        )
+                       [other.ds for other in extra_ds] + [self.ds],
+                       dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
+                       xRes=x_res or self.geoinfo.transform.a,
+                       yRes=y_res or -self.geoinfo.transform.e,
+                       outputBounds=bbox,  # (minX, minY, maxX, maxY)
+                       outputBoundsSRS='epsg:{}'.format(bbox_epsg),
+                       resampleAlg=resampling.value,
+                       format="MEM"
+                       )
         return type(self)(ds)
 
     def fast_warp_as_array(self, bbox, resolution=None) -> Tuple[np.array, GeoInfo]:
@@ -525,7 +525,7 @@ class RasterDataset:
 
             bbox: x_min, y_min, x_max, y_max
         '''
-        if not(len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
+        if not (len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
             raise ValueError('input bbox should be in format: [x_min, y_min, x_max, y_max]')
 
         bounds = self.bounds()
@@ -552,11 +552,11 @@ class RasterDataset:
         warp_xy = ((_bbox - bounds[0]) / ds_resolution).astype(np.uint)
 
         # y coordinates starts from left upper corner
-        warp_xy[:,1] = (self.shape[0] - warp_xy[:,1])[::-1]
+        warp_xy[:, 1] = (self.shape[0] - warp_xy[:, 1])[::-1]
 
         epsg = self.geoinfo.epsg
 
-        warp_img = img[slice(*warp_xy[:,1]), slice(*warp_xy[:,0])]
+        warp_img = img[slice(*warp_xy[:, 1]), slice(*warp_xy[:, 0])]
 
         if resolution is not None:
             raise NotImplementedError('not implemented yet')
@@ -579,7 +579,7 @@ class RasterDataset:
                 epsg=epsg,
                 transform=affine.Affine(
                     ds_resolution[0], 0.0, _bbox[:, 0].min(),
-                    0.0, -ds_resolution[1], _bbox[:,1].max()
+                    0.0, -ds_resolution[1], _bbox[:, 1].max()
                 )
             )
         )
@@ -597,7 +597,7 @@ class RasterDataset:
 
     def crop_by_geometry(
         self,
-        geometry:Union[dict, ogr.Geometry],
+        geometry: Union[dict, ogr.Geometry],
         epsg=4326,
         extra_ds=[],
         resolution=None,
@@ -789,4 +789,3 @@ class VectorDataset:
 
     def simplify(self):
         pass
-

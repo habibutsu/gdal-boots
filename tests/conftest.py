@@ -11,6 +11,7 @@ import pytest
 
 IMG_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
 
+
 @pytest.fixture
 def lena_512_png():
     return os.path.join(IMG_DIR, 'lena512color.png')
@@ -20,9 +21,11 @@ def lena_512_png():
 def minsk_boundary_osm():
     return os.path.join(IMG_DIR, 'minsk-boundary.osm')
 
+
 @pytest.fixture
 def minsk_boundary_gpkg():
     return os.path.join(IMG_DIR, 'minsk-boundary.gpkg')
+
 
 @pytest.fixture
 def minsk_boundary_geojson():
