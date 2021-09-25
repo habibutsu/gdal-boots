@@ -1,11 +1,12 @@
 import os
 import re
 
-from setuptools import setup, find_packages, find_namespace_packages
+from setuptools import find_namespace_packages, find_packages, setup
 
 
 def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    with open(os.path.join(os.path.dirname(__file__), fname)) as fd:
+        return fd.read()
 
 
 def get_version():
@@ -23,20 +24,13 @@ setup(
     description='python friendly wrapper over GDAL',
     long_description=read('readme.md'),
     keywords='GDAL, raster, spatial',
-    url='https://github.com/gdal-wrapper',
+    url='https://github.com/habibutsu/gdal-boots',
     packages=find_packages() + find_namespace_packages(include=['gdal_boots.*']),
     test_suite='test',
     python_requires='>=3.6',
-    install_requires=(
-        'GDAL',
-        'affine',
-    ),
+    install_requires=tuple(read('requirements.txt').split()),
     extras_require={
-        'test': [
-            'pytest',
-            'pampy==0.3.*',
-            'threadpoolctl==2.1.*'
-        ],
+        'test': read('requirements-dev.txt').split(),
     },
     license='MIT',
     classifiers=[

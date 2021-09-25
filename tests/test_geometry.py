@@ -1,9 +1,6 @@
 import json
 
-from gdal_boots.geometry import (
-    GeometryBuilder,
-    transform
-)
+from gdal_boots.geometry import GeometryBuilder, transform
 
 
 def test_create_geometry():

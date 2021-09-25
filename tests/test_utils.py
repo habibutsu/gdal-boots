@@ -1,14 +1,10 @@
 import tempfile
-import shapely.geometry
+
 import numpy as np
+import shapely.geometry
 from affine import Affine
 
-from gdal_boots import (
-    RasterDataset,
-    GeoInfo,
-    PNG,
-    GTiff
-)
+from gdal_boots import PNG, GeoInfo, GTiff, RasterDataset
 
 
 def test_read_by_geom(minsk_polygon):

@@ -1,11 +1,7 @@
 import tempfile
 
-from build.lib.gdal_boots import options
-from build.lib.gdal_boots.gdal import RasterDataset
-from gdal_boots.gdal import (
-    VectorDataset,
-    GeoInfo
-)
+from gdal_boots import options
+from gdal_boots.gdal import RasterDataset, VectorDataset
 
 
 def test_open_file(minsk_boundary_geojson):

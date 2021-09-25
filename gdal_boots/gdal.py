@@ -1,13 +1,14 @@
 import io
 import os
+from dataclasses import dataclass
+from enum import Enum
+from numbers import Number
+from typing import Tuple, Union, overload
+from uuid import uuid4
+
 import affine
 import numpy as np
 
-from uuid import uuid4
-from enum import Enum
-from numbers import Number
-from typing import Union, Tuple, overload
-from dataclasses import dataclass
 try:
     from functools import cached_property
 except ImportError:
@@ -23,13 +24,10 @@ except ImportError:
         return wrapper
 
 from osgeo import gdal, ogr, osr
-from osgeo.osr import (
-    SpatialReference,
-)
-from .geometry import (
-    GeometryBuilder,
-    transform as geometry_transform
-)
+from osgeo.osr import SpatialReference
+
+from .geometry import GeometryBuilder
+from .geometry import transform as geometry_transform
 
 try:
     import orjson as json

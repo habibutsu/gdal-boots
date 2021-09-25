@@ -1,30 +1,20 @@
-import os
 import io
-import tempfile
-import affine
-import shapely.geometry
-import gdal
-import numpy as np
 import json
+import os
+import tempfile
+
+import affine
+import numpy as np
 import pytest
+import shapely.geometry
 import tqdm
-
-from gdal_boots.gdal import (
-    RasterDataset,
-    GeoInfo
-)
-
-from gdal_boots.options import (
-    PNG,
-    GTiff,
-    JP2OpenJPEG,
-    GPKG
-)
-from gdal_boots.geometry import (
-    GeometryBuilder,
-    transform as geometry_transform
-)
+from osgeo import gdal
 from threadpoolctl import threadpool_limits
+
+from gdal_boots.gdal import GeoInfo, RasterDataset
+from gdal_boots.geometry import GeometryBuilder
+from gdal_boots.geometry import transform as geometry_transform
+from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
 np.random.seed(31415926)
 
@@ -126,8 +116,9 @@ def test_vectorize():
 
 def test_memory():
 
-    from osgeo import ogr, gdal
     import json
+
+    from osgeo import gdal, ogr
     gdal.UseExceptions()
 
     geojson = json.dumps({
