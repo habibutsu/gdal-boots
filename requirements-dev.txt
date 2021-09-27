@@ -1,0 +1,8 @@
+pytest
+pytest-cov
+isort
+flake8
+pampy==0.3.*
+threadpoolctl==2.1.*
+tqdm
+shapely

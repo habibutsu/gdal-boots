@@ -1,36 +1,26 @@
-import os
 import io
-import tempfile
-import affine
-import shapely.geometry
-import gdal
-import numpy as np
 import json
+import os
+import os.path
+import tempfile
+
+import affine
+import numpy as np
 import pytest
+import shapely.geometry
 import tqdm
-
-from gdal_boots.gdal import (
-    RasterDataset,
-    GeoInfo
-)
-
-from gdal_boots.options import (
-    PNG,
-    GTiff,
-    JP2OpenJPEG,
-    GPKG
-)
-from gdal_boots.geometry import (
-    GeometryBuilder,
-    transform as geometry_transform
-)
+from osgeo import gdal
 from threadpoolctl import threadpool_limits
+
+from gdal_boots.gdal import GeoInfo, RasterDataset
+from gdal_boots.geometry import GeometryBuilder
+from gdal_boots.geometry import transform as geometry_transform
+from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
 np.random.seed(31415926)
 
 
 def test_open_file(lena_512_png):
-
     with RasterDataset.open(lena_512_png) as ds:
         assert ds
         assert ds.shape == (3, 512, 512)
@@ -39,7 +29,6 @@ def test_open_file(lena_512_png):
         png_data = ds.to_bytes(PNG(zlevel=9))
 
         with tempfile.NamedTemporaryFile(suffix='.png') as fd:
-
             with open(fd.name, 'wb') as fd:
                 fd.write(png_data)
 
@@ -47,7 +36,6 @@ def test_open_file(lena_512_png):
 
 
 def test_open_memory(lena_512_png):
-
     with open(lena_512_png, 'rb') as fd:
         data = fd.read()
 
@@ -60,18 +48,18 @@ def test_open_memory(lena_512_png):
 
         tiff_data = ds.to_bytes(GTiff(zlevel=9))
 
-    with RasterDataset.from_bytes(tiff_data, open_flag=gdal.OF_RASTER|gdal.GA_Update) as ds:
+    with RasterDataset.from_bytes(tiff_data, open_flag=gdal.OF_RASTER | gdal.GA_Update) as ds:
         assert ds.shape
 
     stream = io.BytesIO(tiff_data)
-    with RasterDataset.from_stream(stream, open_flag=gdal.OF_RASTER|gdal.GA_Update) as ds:
+    with RasterDataset.from_stream(stream, open_flag=gdal.OF_RASTER | gdal.GA_Update) as ds:
         assert ds.shape
 
 
 def test_create():
     img = np.random.randint(0, 255, size=(1098, 1098), dtype=np.uint8)
-    img[100:200,100:200] = 192
-    img[800:900,800:900] = 250
+    img[100:200, 100:200] = 192
+    img[800:900, 800:900] = 250
 
     geoinfo = GeoInfo(
         epsg=32631,
@@ -79,14 +67,13 @@ def test_create():
     )
 
     with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
-        ds[:,:] = img
+        ds[:, :] = img
 
         with tempfile.NamedTemporaryFile(suffix='.png') as fd:
             ds.to_file(fd.name, PNG())
             data = fd.read()
             assert len(data) == 1190120
             assert data[:4] == b'\x89PNG'
-
 
         with tempfile.NamedTemporaryFile(suffix='.tiff') as fd:
             ds.to_file(fd.name, GTiff())
@@ -107,8 +94,8 @@ def test_create():
 
 def test_vectorize():
     img = np.full((1098, 1098), 64, dtype=np.uint8)
-    img[10:200,10:200] = 192
-    img[800:900,800:900] = 250
+    img[10:200, 10:200] = 192
+    img[800:900, 800:900] = 250
 
     geoinfo = GeoInfo(
         epsg=32631,
@@ -116,7 +103,7 @@ def test_vectorize():
     )
 
     with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
-        ds[:,:] = img
+        ds[:, :] = img
 
         v_ds = ds.to_vector()
         assert v_ds
@@ -125,9 +112,9 @@ def test_vectorize():
 
 
 def test_memory():
-
-    from osgeo import ogr, gdal
     import json
+
+    from osgeo import gdal, ogr
     gdal.UseExceptions()
 
     geojson = json.dumps({
@@ -143,27 +130,30 @@ def test_memory():
     # gdal.VectorTranslate('test.gpkg', srcdb, format='GPKG')
     # return
 
-    #create an output datasource in memory
+    # create an output datasource in memory
     outdriver = ogr.GetDriverByName('MEMORY')
     source = outdriver.CreateDataSource('memData')
 
-    #open the memory datasource with write access
-    tmp = outdriver.Open('memData',1)
+    # open the memory datasource with write access
+    tmp = outdriver.Open('memData', 1)
 
-    #copy a layer to memory
+    # copy a layer to memory
     pipes_mem = source.CopyLayer(srcdb.GetLayer(), 'pipes', ['OVERWRITE=YES'])
 
-    #the new layer can be directly accessed via the handle pipes_mem or as source.GetLayer('pipes'):
+    # the new layer can be directly accessed via the handle pipes_mem or as source.GetLayer('pipes'):
     layer = source.GetLayer('pipes')
     for feature in layer:
-        feature.SetField('SOMETHING',1)
+        feature.SetField('SOMETHING', 1)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         gdal.VectorTranslate(f'{tmp_dir}/test.gpkg', srcdb, format='GPKG')
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
 def test_warp(minsk_polygon):
-
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
@@ -179,8 +169,11 @@ def test_warp(minsk_polygon):
         assert all((np.array(warped_ds.shape) / 10).round() == warped_ds_r100.shape)
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/'),
+    reason='extra folder "tests/fixtures/extra/" does not exist',
+)
 def test_fast_warp():
-
     with open('tests/fixtures/35UNV_field_small.geojson') as fd:
         test_field = json.load(fd)
         geometry_4326 = GeometryBuilder.create(test_field)
@@ -188,10 +181,9 @@ def test_fast_warp():
     def _get_bbox(epsg):
         utm_geometry = geometry_transform(geometry_4326, 4326, epsg)
         bbox = utm_geometry.GetEnvelope()
-        return np.array(bbox).reshape(2,2).T.reshape(-1)
+        return np.array(bbox).reshape(2, 2).T.reshape(-1)
 
     with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
-
         bbox = _get_bbox(ds.geoinfo.epsg)
 
         with tempfile.NamedTemporaryFile(prefix='10m_', suffix='.tiff') as fd:
@@ -200,7 +192,7 @@ def test_fast_warp():
 
             assert ds_warp.shape == (8, 9)
             assert np.all(
-                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509130., 5946120.]])
+                ds_warp.bounds() == np.array([[509040., 5946040.], [509130., 5946120.]])
             )
             assert ds_warp.dtype == ds.dtype
 
@@ -217,11 +209,10 @@ def test_fast_warp():
 
             assert ds_warp
             assert np.all(
-                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509140., 5946120.]])
+                ds_warp.bounds() == np.array([[509040., 5946040.], [509140., 5946120.]])
             )
 
     with RasterDataset.open('tests/fixtures/extra/B09_60m.jp2') as ds:
-
         bbox = _get_bbox(ds.geoinfo.epsg)
 
         with tempfile.NamedTemporaryFile(prefix='60m_', suffix='.tiff') as fd:
@@ -230,7 +221,7 @@ def test_fast_warp():
 
             assert ds_warp.shape == (2, 2)
             assert np.all(
-                ds_warp.bounds() == np.array([[ 509040., 5946000.], [ 509160., 5946120.]])
+                ds_warp.bounds() == np.array([[509040., 5946000.], [509160., 5946120.]])
             )
 
         ds_10m = ds.warp(
@@ -245,12 +236,15 @@ def test_fast_warp():
 
             assert ds_warp.shape == (8, 9)
             assert np.all(
-                ds_warp.bounds() == np.array([[ 509040., 5946040.], [ 509130., 5946120.]])
+                ds_warp.bounds() == np.array([[509040., 5946040.], [509130., 5946120.]])
             )
 
 
+@pytest.mark.skipif(
+    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
+)
 def test_bounds():
-
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
         assert np.all(ds.bounds() == [
             (499980.0, 5890200.0),
@@ -259,11 +253,11 @@ def test_bounds():
         assert np.all(ds.bounds(4326) == [
             (26.999700868340735, 53.16117354432605),
             (28.68033586831364, 54.136377428252246)]
-        )
+                      )
 
     with RasterDataset.create(shape=(100, 100), dtype=np.uint8) as ds:
         ds[:] = 255
-        ds[1:99,1:99] = 0
+        ds[1:99, 1:99] = 0
         ds.set_bounds(
             [
                 (499980.0, 5890200.0),
@@ -352,7 +346,6 @@ def test_crop_by_geometry():
 
 
 def test_write():
-
     img = np.ones((3, 5, 5))
     img[0] = 1
     img[1] = 2
@@ -362,28 +355,28 @@ def test_write():
     ds[:] = 1
     ds[:] = img
     ds[0] = img[0]
-    ds[:,0] = 1
+    ds[:, 0] = 1
     # not supported
     # ds[:,0,:] = img[:,0]
-    ds[1:3,1:3,:] = 1
-    ds[(0,2), 2:5, 2:5] = img[(0, 2), :3, :3]
+    ds[1:3, 1:3, :] = 1
+    ds[(0, 2), 2:5, 2:5] = img[(0, 2), :3, :3]
 
     ds = RasterDataset.create(shape=(10, 10))
-    ds[2:5,2:5] = 1
+    ds[2:5, 2:5] = 1
 
 
-
+@pytest.mark.skipif(not os.getenv('TEST_COMPARE_WARP', ''), reason='skip comparison warp')
 @pytest.mark.skipif(
-    not os.getenv('TEST_COMPARE_WARP', ''),
-    reason='skip comparison warp')
+    not os.path.exists('tests/fixtures/extra/B02_10m.jp2'),
+    reason='extra file "tests/fixtures/extra/B02_10m.jp2" does not exist',
+)
 def test_compare_warp_fast_warp():
-
     np.random.randint(1622825326.8494937)
 
     with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
         ds_bounds = ds.bounds()
 
-        size= 1000
+        size = 1000
         hw_range = np.array([50, 500]) * ds.resolution
 
         xy = np.array([

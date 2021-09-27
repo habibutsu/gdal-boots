@@ -1,13 +1,16 @@
 import os
-# import warnings
 
 import pytest
+
+# import warnings
+
 
 # pytest.mark.filterwarnings("ignore", category=DeprecationWarning)
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 IMG_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
+
 
 @pytest.fixture
 def lena_512_png():
@@ -18,9 +21,11 @@ def lena_512_png():
 def minsk_boundary_osm():
     return os.path.join(IMG_DIR, 'minsk-boundary.osm')
 
+
 @pytest.fixture
 def minsk_boundary_gpkg():
     return os.path.join(IMG_DIR, 'minsk-boundary.gpkg')
+
 
 @pytest.fixture
 def minsk_boundary_geojson():
