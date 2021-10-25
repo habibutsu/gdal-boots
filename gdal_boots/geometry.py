@@ -59,7 +59,6 @@ def to_geojson(geometry: ogr.Geometry, flatten: bool = True) -> dict:
     }
 
 
-
 def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
     from_src = osr.SpatialReference()
     from_src.ImportFromEPSG(from_epsg)
@@ -94,6 +93,6 @@ def intersection_geojson(input_geometry: dict, overlay_geometry: dict, flatten: 
     result = input_geometry.Intersection(overlay_geometry)
 
     if result.IsEmpty():
-        return None, 0
+        return None
 
     return to_geojson(result, flatten=flatten)
