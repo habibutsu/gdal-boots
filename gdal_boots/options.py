@@ -13,14 +13,17 @@ __all__ = (
     'GPKG',
 )
 
+def _encode(values):
+    return [
+        ('='.join([name, str(value.value if isinstance(value, Enum) else value)])).upper()
+        for name, value in values.items()
+        if value is not None
+    ]
+
 
 class DriverOptions:
     def encode(self):
-        return [
-            ('='.join([name, str(value.value if isinstance(value, Enum) else value)])).upper()
-            for name, value in vars(self).items()
-            if value is not None
-        ]
+        return _encode(vars(self))
 
     @property
     def driver_name(self):
@@ -64,12 +67,23 @@ class GTiff(DriverOptions):
         lerc_deflate = 'LERC_DEFLATE'
         lerc_zstd = 'LERC_ZSTD'
 
+    class Interleave(Enum):
+        band = 'BAND'
+        pixel = 'PIXEL'
+
     blockxsize: int = 256
     blockysize: int = 256
     tiled: bool = False
+    interleave: Interleave = Interleave.pixel
     compress: Compress = None
     nbits: int = None
     zlevel: int = 6
+
+    def encode(self):
+        values = vars(self)
+        if self.compress != self.Compress.deflate:
+            values.pop("zlevel", None)
+        return _encode(values)
 
 
 @dataclass

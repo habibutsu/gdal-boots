@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from gdal_boots.geometry import GeometryBuilder, transform, transform_geojson
+from gdal_boots.geometry import GeometryBuilder, to_geojson, transform, transform_geojson
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def geometry_geojson_4326():
             [2.291867, 48.857713],
             [2.293404, 48.856723],
             [2.296872, 48.859022],
-            [2.295279, 48.860081],
+            [2.295279, 48.860081]
         ]],
     }
 
@@ -59,3 +59,8 @@ def test_transform_geojson(geometry_geojson_4326):
             (255509.28950849414, 6251153.3290389115),
         ]],
     }
+
+def test_to_geojson(geometry_geojson_4326):
+    geometry = GeometryBuilder.create(geometry_geojson_4326)
+    geometry_geojson = to_geojson(geometry)
+    assert geometry_geojson_4326 == json.loads(json.dumps(geometry_geojson))

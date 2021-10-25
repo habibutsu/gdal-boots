@@ -23,6 +23,13 @@ class GeometryBuilder:
         return polygon
 
     @classmethod
+    def create_linearring(cls, coordinates: list) -> ogr.Geometry:
+        linearring = ogr.Geometry(ogr.wkbLinearRing)
+        for point in coordinates:
+            linearring.AddPoint(*point)
+        return linearring
+
+    @classmethod
     def create_line_string(cls, coordinates: list) -> ogr.Geometry:
         line = ogr.Geometry(ogr.wkbLineString)
         for point in coordinates:
@@ -38,6 +45,19 @@ class GeometryBuilder:
             multipolygon.AddGeometry(polygon)
 
         return multipolygon
+
+def to_geojson(geometry: ogr.Geometry, flatten: bool = True) -> dict:
+    if flatten:
+        geometry.FlattenTo2D()
+
+    return {
+        "type": geometry.GetGeometryName().lower().title(),
+        "coordinates": [
+            geometry.GetGeometryRef(i).GetPoints()
+            for i in range(geometry.GetGeometryCount())
+        ],
+    }
+
 
 
 def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
@@ -60,7 +80,20 @@ def transform_geojson(geometry: dict, from_epsg: int, to_epsg: int, flatten: boo
     if flatten:
         ogr_geometry.FlattenTo2D()
     new_geometry = transform(ogr_geometry, from_epsg, to_epsg)
-    return {
-        'type': geometry['type'],
-        'coordinates': [new_geometry.GetGeometryRef(i).GetPoints() for i in range(new_geometry.GetGeometryCount())]
-    }
+    return to_geojson(new_geometry)
+
+
+def intersection_geojson(input_geometry: dict, overlay_geometry: dict, flatten: bool = True) -> dict:
+    input_geometry = GeometryBuilder.create(input_geometry)
+    overlay_geometry = GeometryBuilder.create(overlay_geometry)
+
+    if flatten:
+        input_geometry.FlattenTo2D()
+        overlay_geometry.FlattenTo2D()
+
+    result = input_geometry.Intersection(overlay_geometry)
+
+    if result.IsEmpty():
+        return None, 0
+
+    return to_geojson(result, flatten=flatten)
