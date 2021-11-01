@@ -224,7 +224,7 @@ class RasterDataset:
         ds[:] = self[:].astype(dtype)
         # copy bands descriptions
         for idx in range(self.ds.RasterCount):
-            self.set_band_description(idx, self.get_band_description(idx))
+            ds.set_band_description(idx, self.get_band_description(idx))
         return ds
 
     def __repr__(self):
