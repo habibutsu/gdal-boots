@@ -50,12 +50,28 @@ def to_geojson(geometry: ogr.Geometry, flatten: bool = True) -> dict:
     if flatten:
         geometry.FlattenTo2D()
 
-    return {
-        "type": geometry.GetGeometryName().lower().title(),
-        "coordinates": [
+    geometry_type_lower = geometry.GetGeometryName().lower()
+    if geometry_type_lower == 'polygon':
+        geometry_type = "Polygon"
+        coordinates = [
             geometry.GetGeometryRef(i).GetPoints()
             for i in range(geometry.GetGeometryCount())
-        ],
+        ]
+    elif geometry_type_lower == 'multipolygon':
+        geometry_type = "MultiPolygon"
+        coordinates = [
+            (lambda g: [
+                g.GetGeometryRef(j).GetPoints()
+                for j in range(geometry.GetGeometryCount())
+            ])(geometry.GetGeometryRef(i))
+            for i in range(geometry.GetGeometryCount())
+        ]
+    else:
+        raise ValueError(f"{geometry_type_lower} is not supported")
+
+    return {
+        "type": geometry_type,
+        "coordinates": coordinates
     }
 
 
