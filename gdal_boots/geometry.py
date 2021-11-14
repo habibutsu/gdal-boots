@@ -9,7 +9,12 @@ class GeometryBuilder:
         if isinstance(geometry, str):
             return ogr.CreateGeometryFromJson(geometry)
 
-        handler = getattr(cls, 'create_{}'.format(geometry['type'].lower()))
+        geometry_type_lower = geometry['type'].lower()
+        try:
+            handler = getattr(cls, f"create_{geometry_type_lower}")
+        except AttributeError:
+            raise ValueError(f"{geometry_type_lower} is not supported")
+
         return handler(geometry['coordinates'])
 
     @classmethod
@@ -46,33 +51,57 @@ class GeometryBuilder:
 
         return multipolygon
 
-def to_geojson(geometry: ogr.Geometry, flatten: bool = True) -> dict:
-    if flatten:
-        geometry.FlattenTo2D()
+    @classmethod
+    def create_point(cls, coordinates: list) -> ogr.Geometry:
+        point = ogr.Geometry(ogr.wkbPoint)
+        if coordinates:
+            point.AddPoint(*coordinates)
+        return point
 
-    geometry_type_lower = geometry.GetGeometryName().lower()
-    if geometry_type_lower == 'polygon':
-        geometry_type = "Polygon"
+
+class GeometryGeoJson:
+
+    @classmethod
+    def convert(cls, geometry: ogr.Geometry) -> dict:
+        geometry_type_lower = geometry.GetGeometryName().lower()
+        try:
+            handler = getattr(cls, f"convert_{geometry_type_lower}")
+        except AttributeError:
+            raise ValueError(f"{geometry_type_lower} is not supported")
+        geometry_type, coordinates = handler(geometry)
+        return {
+            "type": geometry_type,
+            "coordinates": coordinates
+        }
+
+    @classmethod
+    def convert_polygon(cls, geometry: ogr.Geometry) -> dict:
         coordinates = [
             geometry.GetGeometryRef(i).GetPoints()
             for i in range(geometry.GetGeometryCount())
         ]
-    elif geometry_type_lower == 'multipolygon':
-        geometry_type = "MultiPolygon"
-        coordinates = [
-            (lambda g: [
-                g.GetGeometryRef(j).GetPoints()
-                for j in range(geometry.GetGeometryCount())
-            ])(geometry.GetGeometryRef(i))
-            for i in range(geometry.GetGeometryCount())
-        ]
-    else:
-        raise ValueError(f"{geometry_type_lower} is not supported")
+        return "Polygon", coordinates
 
-    return {
-        "type": geometry_type,
-        "coordinates": coordinates
-    }
+    @classmethod
+    def convert_multipolygon(cls, geometry: ogr.Geometry) -> dict:
+        coordinates = []
+        for i in range(geometry.GetGeometryCount()):
+            sub_geom = geometry.GetGeometryRef(i)
+            _, sub_coordinates = cls.convert_polygon(sub_geom)
+            coordinates.append(sub_coordinates)
+        return "MultiPolygon", coordinates
+
+    @classmethod
+    def convert_point(cls, geometry: ogr.Geometry) -> dict:
+        coordinates = list(geometry.GetPoints()[0])
+        return "Point", coordinates
+
+
+def to_geojson(geometry: ogr.Geometry, flatten: bool = True) -> dict:
+    if flatten:
+        geometry.FlattenTo2D()
+
+    return GeometryGeoJson.convert(geometry)
 
 
 def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
