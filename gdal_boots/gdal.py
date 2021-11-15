@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import os
-import json
 
 from dataclasses import dataclass
 from enum import Enum
@@ -20,7 +19,6 @@ except ImportError:
 
 
     def cached_property(fn):
-
         @property
         @lru_cache(maxsize=None)
         def wrapper(self):
@@ -58,10 +56,11 @@ gdal.UseExceptions()
 
 
 class imdict(dict):
-    '''
-        immutable dict
-        https://www.python.org/dev/peps/pep-0351/
-    '''
+    """
+    immutable dict
+    https://www.python.org/dev/peps/pep-0351/
+    """
+
     def __hash__(self):
         return id(self)
 
@@ -70,11 +69,11 @@ class imdict(dict):
 
     __setitem__ = _immutable
     __delitem__ = _immutable
-    clear       = _immutable
-    update      = _immutable
-    setdefault  = _immutable
-    pop         = _immutable
-    popitem     = _immutable
+    clear = _immutable
+    update = _immutable
+    setdefault = _immutable
+    pop = _immutable
+    popitem = _immutable
 
 
 @dataclass
@@ -140,7 +139,6 @@ class Resampling(Enum):
 
 
 class RasterDataset:
-
     def __init__(self, ds: gdal.Dataset):
         self.ds = ds
         self._mem_id = None
@@ -420,14 +418,18 @@ class RasterDataset:
 
     @classmethod
     def open(cls, filename, open_flag=gdal.OF_RASTER) -> RasterDataset:
-
         ds = gdal.OpenEx(filename, open_flag)
         obj = cls(ds)
         obj.filename = filename
         return obj
 
     @classmethod
-    def create(cls, shape: Union[Tuple[int, int, int], Tuple[int, int]], dtype=int, geoinfo: GeoInfo = None) -> RasterDataset:
+    def create(
+        cls,
+        shape: Union[Tuple[int, int, int], Tuple[int, int]],
+        dtype=int,
+        geoinfo: GeoInfo = None,
+    ) -> RasterDataset:
         if len(shape) > 2:
             bands, height, width = shape
         else:
