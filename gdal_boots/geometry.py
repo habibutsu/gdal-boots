@@ -1,4 +1,4 @@
-from typing import Union, List, Sequence
+from typing import List, Sequence, Union
 
 from osgeo import ogr, osr
 

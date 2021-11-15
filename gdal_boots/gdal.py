@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import os
-
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
