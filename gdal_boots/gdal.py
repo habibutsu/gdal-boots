@@ -262,7 +262,7 @@ class RasterDataset:
             (max_x, max_y),
         ]
         if epsg and epsg != geoinfo.epsg:
-            geometry = GeometryBuilder.create_line_string(bounds)
+            geometry = GeometryBuilder().create_linestring(bounds)
             geometry_upd = geometry_transform(geometry, geoinfo.epsg, epsg)
             geometry.Destroy()
 
@@ -277,7 +277,7 @@ class RasterDataset:
             (max_x, max_y),
         ] = self.bounds(epsg=epsg)
 
-        polygon = GeometryBuilder.create_polygon([[
+        polygon = GeometryBuilder().create_polygon([[
             (min_x, min_y),
             (max_x, min_y),
             (max_x, max_y),
@@ -666,7 +666,7 @@ class RasterDataset:
         apply_mask=True,
     ) -> Tuple[RasterDataset, RasterDataset]:
         if not isinstance(geometry, ogr.Geometry):
-            geometry = GeometryBuilder.create(geometry)
+            geometry = GeometryBuilder().create(geometry)
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(

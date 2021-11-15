@@ -1,6 +1,5 @@
 import io
 import json
-import os
 import os.path
 import tempfile
 
@@ -176,7 +175,7 @@ def test_warp(minsk_polygon):
 def test_fast_warp():
     with open('tests/fixtures/35UNV_field_small.geojson') as fd:
         test_field = json.load(fd)
-        geometry_4326 = GeometryBuilder.create(test_field)
+        geometry_4326 = GeometryBuilder().create(test_field)
 
     def _get_bbox(epsg):
         utm_geometry = geometry_transform(geometry_4326, 4326, epsg)
@@ -332,7 +331,7 @@ def test_crop_by_geometry():
 
     # crop by 3857
     with tempfile.TemporaryDirectory() as tmp_dir:
-        geometry_4326 = GeometryBuilder.create(geometry)
+        geometry_4326 = GeometryBuilder().create(geometry)
         geometry_3857 = geometry_transform(geometry_4326, 4326, 3857)
         geometry_3857.FlattenTo2D()
         cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)

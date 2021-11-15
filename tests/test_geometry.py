@@ -21,7 +21,7 @@ def geometry_geojson_4326():
 
 @pytest.fixture
 def geometry_4326(geometry_geojson_4326):
-    geometry = GeometryBuilder.create(geometry_geojson_4326)
+    geometry = GeometryBuilder().create(geometry_geojson_4326)
     geometry.FlattenTo2D()
     return geometry
 
@@ -60,8 +60,10 @@ def test_transform_geojson(geometry_geojson_4326):
         ]],
     }
 
+
 def test_to_geojson(geometry_geojson_4326):
-    geometry = GeometryBuilder.create(geometry_geojson_4326)
+    geometry_builder = GeometryBuilder(flatten=True)
+    geometry = geometry_builder(geometry_geojson_4326)
     geometry_geojson = to_geojson(geometry)
     assert geometry_geojson_4326 == json.loads(json.dumps(geometry_geojson))
 
@@ -69,22 +71,28 @@ def test_to_geojson(geometry_geojson_4326):
         "type": "MultiPolygon",
         "coordinates": []
     }
-    assert to_geojson(GeometryBuilder.create(geom)) == geom
+    assert to_geojson(geometry_builder(geom)) == geom
 
     geom = {
         "type": "MultiPolygon",
         "coordinates": [[]]
     }
-    assert to_geojson(GeometryBuilder.create(geom)) == geom
+    assert to_geojson(geometry_builder(geom)) == geom
 
     geom = {
         "type": "Polygon",
         "coordinates": []
     }
-    assert to_geojson(GeometryBuilder.create(geom)) == geom
+    assert to_geojson(geometry_builder(geom)) == geom
 
     geom = {
         "type": "Point",
         "coordinates": [1, 2]
     }
-    assert to_geojson(GeometryBuilder.create(geom)) == geom
+    assert to_geojson(geometry_builder(geom)) == geom
+
+    geom = {
+        "type": "Point",
+        "coordinates": [1, 2, 0]
+    }
+    assert to_geojson(GeometryBuilder(flatten=False).create(geom), flatten=False) == geom
