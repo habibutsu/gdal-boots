@@ -399,3 +399,43 @@ def test_compare_warp_fast_warp():
 
         for bbox in tqdm.tqdm(bboxes):
             ds_warp = ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)
+
+
+def test_meta_save_load():
+    shape = (10, 10)
+    ds = RasterDataset.create(
+        shape=shape,
+        dtype=np.uint8,
+        geoinfo=GeoInfo(
+            epsg=32720,
+            transform=affine.Affine(
+                10.000000005946216, 0.0, 554680.0000046358,
+                0.0, -10.000000003180787, 6234399.99998708
+            )
+        )
+    )
+    ds[:] = np.random.randint(64, 128, shape, np.uint8)
+
+    def check_meta(desired_meta: dict):
+        data = ds.to_bytes(GTiff())
+        loaded_ds = RasterDataset.from_bytes(data)
+        metadata = loaded_ds.meta
+        for k, v in desired_meta.items():
+            assert k in metadata
+            assert metadata[k] == v
+
+    meta = {'one': 1}
+    ds.meta = meta
+    check_meta(meta)
+
+    meta['two'] = 2
+    ds.meta = meta
+    check_meta(meta)
+
+    with pytest.raises(TypeError):
+        ds.meta['not work'] = 'not work'
+
+    # python 3.9 feature
+    meta |= {'test1': 'string', 'test2': 1.4}
+    ds.meta |= {'test1': 'string', 'test2': 1.4}
+    check_meta(meta)
