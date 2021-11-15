@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import io
 import os
-import json
-
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
@@ -20,7 +18,6 @@ except ImportError:
 
 
     def cached_property(fn):
-
         @property
         @lru_cache(maxsize=None)
         def wrapper(self):
@@ -58,10 +55,11 @@ gdal.UseExceptions()
 
 
 class imdict(dict):
-    '''
-        immutable dict
-        https://www.python.org/dev/peps/pep-0351/
-    '''
+    """
+    immutable dict
+    https://www.python.org/dev/peps/pep-0351/
+    """
+
     def __hash__(self):
         return id(self)
 
@@ -70,11 +68,11 @@ class imdict(dict):
 
     __setitem__ = _immutable
     __delitem__ = _immutable
-    clear       = _immutable
-    update      = _immutable
-    setdefault  = _immutable
-    pop         = _immutable
-    popitem     = _immutable
+    clear = _immutable
+    update = _immutable
+    setdefault = _immutable
+    pop = _immutable
+    popitem = _immutable
 
 
 @dataclass
@@ -140,7 +138,6 @@ class Resampling(Enum):
 
 
 class RasterDataset:
-
     def __init__(self, ds: gdal.Dataset):
         self.ds = ds
         self._mem_id = None
@@ -264,7 +261,7 @@ class RasterDataset:
             (max_x, max_y),
         ]
         if epsg and epsg != geoinfo.epsg:
-            geometry = GeometryBuilder.create_line_string(bounds)
+            geometry = GeometryBuilder().create_linestring(bounds)
             geometry_upd = geometry_transform(geometry, geoinfo.epsg, epsg)
             geometry.Destroy()
 
@@ -279,7 +276,7 @@ class RasterDataset:
             (max_x, max_y),
         ] = self.bounds(epsg=epsg)
 
-        polygon = GeometryBuilder.create_polygon([[
+        polygon = GeometryBuilder().create_polygon([[
             (min_x, min_y),
             (max_x, min_y),
             (max_x, max_y),
@@ -420,14 +417,18 @@ class RasterDataset:
 
     @classmethod
     def open(cls, filename, open_flag=gdal.OF_RASTER) -> RasterDataset:
-
         ds = gdal.OpenEx(filename, open_flag)
         obj = cls(ds)
         obj.filename = filename
         return obj
 
     @classmethod
-    def create(cls, shape: Union[Tuple[int, int, int], Tuple[int, int]], dtype=int, geoinfo: GeoInfo = None) -> RasterDataset:
+    def create(
+        cls,
+        shape: Union[Tuple[int, int, int], Tuple[int, int]],
+        dtype=int,
+        geoinfo: GeoInfo = None,
+    ) -> RasterDataset:
         if len(shape) > 2:
             bands, height, width = shape
         else:
@@ -664,7 +665,7 @@ class RasterDataset:
         apply_mask=True,
     ) -> Tuple[RasterDataset, RasterDataset]:
         if not isinstance(geometry, ogr.Geometry):
-            geometry = GeometryBuilder.create(geometry)
+            geometry = GeometryBuilder().create(geometry)
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(

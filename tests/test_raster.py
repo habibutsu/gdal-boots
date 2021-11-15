@@ -1,6 +1,5 @@
 import io
 import json
-import os
 import os.path
 import tempfile
 
@@ -176,7 +175,7 @@ def test_warp(minsk_polygon):
 def test_fast_warp():
     with open('tests/fixtures/35UNV_field_small.geojson') as fd:
         test_field = json.load(fd)
-        geometry_4326 = GeometryBuilder.create(test_field)
+        geometry_4326 = GeometryBuilder().create(test_field)
 
     def _get_bbox(epsg):
         utm_geometry = geometry_transform(geometry_4326, 4326, epsg)
@@ -332,7 +331,7 @@ def test_crop_by_geometry():
 
     # crop by 3857
     with tempfile.TemporaryDirectory() as tmp_dir:
-        geometry_4326 = GeometryBuilder.create(geometry)
+        geometry_4326 = GeometryBuilder().create(geometry)
         geometry_3857 = geometry_transform(geometry_4326, 4326, 3857)
         geometry_3857.FlattenTo2D()
         cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)
@@ -399,3 +398,43 @@ def test_compare_warp_fast_warp():
 
         for bbox in tqdm.tqdm(bboxes):
             ds_warp = ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)
+
+
+def test_meta_save_load():
+    shape = (10, 10)
+    ds = RasterDataset.create(
+        shape=shape,
+        dtype=np.uint8,
+        geoinfo=GeoInfo(
+            epsg=32720,
+            transform=affine.Affine(
+                10.000000005946216, 0.0, 554680.0000046358,
+                0.0, -10.000000003180787, 6234399.99998708
+            )
+        )
+    )
+    ds[:] = np.random.randint(64, 128, shape, np.uint8)
+
+    def check_meta(desired_meta: dict):
+        data = ds.to_bytes(GTiff())
+        loaded_ds = RasterDataset.from_bytes(data)
+        metadata = loaded_ds.meta
+        for k, v in desired_meta.items():
+            assert k in metadata
+            assert metadata[k] == v
+
+    meta = {'one': 1}
+    ds.meta = meta
+    check_meta(meta)
+
+    meta['two'] = 2
+    ds.meta = meta
+    check_meta(meta)
+
+    with pytest.raises(TypeError):
+        ds.meta['not work'] = 'not work'
+
+    # python 3.9 feature
+    meta |= {'test1': 'string', 'test2': 1.4}
+    ds.meta |= {'test1': 'string', 'test2': 1.4}
+    check_meta(meta)
