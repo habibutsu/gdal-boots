@@ -2,6 +2,7 @@ import io
 import json
 import os.path
 import tempfile
+import sys
 
 import affine
 import numpy as np
@@ -435,6 +436,13 @@ def test_meta_save_load():
         ds.meta['not work'] = 'not work'
 
     # python 3.9 feature
-    meta |= {'test1': 'string', 'test2': 1.4}
-    ds.meta |= {'test1': 'string', 'test2': 1.4}
+    if sys.version_info >= (3,9,0):
+        meta |= {'test1': 'string', 'test2': 1.4}
+        ds.meta |= {'test1': 'string', 'test2': 1.4}
+    else:
+        meta.update({'test1': 'string', 'test2': 1.4})
+        ds_meta = dict(ds.meta)
+        ds_meta.update({'test1': 'string', 'test2': 1.4})
+        ds.meta = ds_meta
+
     check_meta(meta)

@@ -225,6 +225,8 @@ class RasterDataset:
         return ds
 
     def __repr__(self):
+        if self.ds is None:
+            return f'<{type(self).__name__} {hex(id(self))} empty>'
         return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} epsg:{self.geoinfo.epsg}>'
 
     def bounds(self, epsg=None) -> np.array:
@@ -261,7 +263,7 @@ class RasterDataset:
             (max_x, max_y),
         ]
         if epsg and epsg != geoinfo.epsg:
-            geometry = GeometryBuilder().create_linestring(bounds)
+            geometry = GeometryBuilder().create({"type": "LineString", "coordinates": bounds})
             geometry_upd = geometry_transform(geometry, geoinfo.epsg, epsg)
             geometry.Destroy()
 
