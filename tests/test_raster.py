@@ -13,8 +13,11 @@ from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
 from gdal_boots.gdal import GeoInfo, RasterDataset
-from gdal_boots.geometry import GeometryBuilder
-from gdal_boots.geometry import transform as geometry_transform
+from gdal_boots.geometry import (
+    GeometryBuilder,
+    transform as geometry_transform,
+    to_geojson
+)
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
 np.random.seed(31415926)
@@ -284,6 +287,17 @@ def test_bounds():
             [499980.0, 5890200.0],
             [609780.0, 6000000.0],
         ])
+        result = to_geojson(ds.bounds_polygon(), precision=9)
+        assert result == {
+            "type": "Polygon",
+            "coordinates": [[
+                [26.999700868, 53.161173544],
+                [28.680335868, 53.161173544],
+                [28.680335868, 54.136377428],
+                [26.999700868, 54.136377428],
+                [26.999700868, 53.161173544]
+            ]]
+        }
 
 
 def test_crop_by_geometry():

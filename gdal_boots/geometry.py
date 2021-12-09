@@ -178,7 +178,7 @@ def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
         geometry_type = geometry.GetGeometryName()
         union_geometry = ogr.Geometry(
             ogr.wkbMultiPolygon if geometry_type == "MULTIPOLYGON"
-            else ogr.wkbMultiPolygon
+            else ogr.wkbPolygon
         )
         for i in range(valid_geometry.GetGeometryCount()):
             sub_geometry = valid_geometry.GetGeometryRef(i)
