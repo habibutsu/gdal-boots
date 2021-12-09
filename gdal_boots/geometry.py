@@ -170,22 +170,35 @@ def make_valid_geojson(geometry: dict, precision=None) -> dict:
 
 def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
     geometry.CloseRings()
-    geometry = geometry.MakeValid()
-    if geometry is None:
+    valid_geometry = geometry.MakeValid()
+    if valid_geometry is None:
         raise RuntimeError(gdal.GetLastErrorMsg())
 
-    if geometry.GetGeometryName() == "GEOMETRYCOLLECTION":
-        union = None
-        for i in range(geometry.GetGeometryCount()):
-            sub_geometry = geometry.GetGeometryRef(i)
+    if valid_geometry.GetGeometryName() == "GEOMETRYCOLLECTION":
+        geometry_type = geometry.GetGeometryName()
+        union_geometry = ogr.Geometry(
+            ogr.wkbMultiPolygon if geometry_type == "MULTIPOLYGON"
+            else ogr.wkbMultiPolygon
+        )
+        for i in range(valid_geometry.GetGeometryCount()):
+            sub_geometry = valid_geometry.GetGeometryRef(i)
 
             if sub_geometry.GetGeometryName() not in ['MULTIPOLYGON', 'POLYGON']:
                 continue
+            union_geometry = union_geometry.Union(sub_geometry)
 
-            if union is None:
-                union = sub_geometry.Clone()
-            else:
-                union = union.Union(sub_geometry)
-        geometry.Destroy()
-        return union
-    return geometry
+        valid_geometry.Destroy()
+        valid_geometry = union_geometry
+
+        # cast to input type if possible
+        if(
+            geometry_type == "MULTIPOLYGON" and
+            valid_geometry.GetGeometryName() == "POLYGON"
+        ):
+            _geometry = ogr.Geometry(ogr.wkbMultiPolygon)
+            _geometry.AddGeometry(valid_geometry)
+            valid_geometry = _geometry
+
+        return valid_geometry
+
+    return valid_geometry
