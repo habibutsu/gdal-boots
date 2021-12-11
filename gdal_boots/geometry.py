@@ -22,37 +22,37 @@ class GeometryBuilder:
 
         return handler(**geometry)
 
-    def create_polygon(self, type:str, coordinates: list) -> ogr.Geometry:
+    def create_polygon(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
         polygon = ogr.Geometry(ogr.wkbPolygon)
         for ring_coords in coordinates:
-            polygon.AddGeometry(self.create_linearring("LinearRing", ring_coords))
+            polygon.AddGeometry(self.create_linearring(ring_coords))
         return polygon
 
-    def create_linearring(self, type:str, coordinates: List[Sequence]) -> ogr.Geometry:
+    def create_linearring(self, coordinates: List[Sequence], **kwargs) -> ogr.Geometry:
         return self._add_points(ogr.Geometry(ogr.wkbLinearRing), coordinates)
 
-    def create_linestring(self, type:str, coordinates: list) -> ogr.Geometry:
+    def create_linestring(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
         return self._add_points(ogr.Geometry(ogr.wkbLineString), coordinates)
 
-    def create_multipolygon(self, type:str,  coordinates: list) -> ogr.Geometry:
+    def create_multipolygon(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
         multipolygon = ogr.Geometry(ogr.wkbMultiPolygon)
         for polygon_coordinates in coordinates:
-            multipolygon.AddGeometry(self.create_polygon("Polygon", polygon_coordinates))
+            multipolygon.AddGeometry(self.create_polygon(polygon_coordinates))
         return multipolygon
 
-    def create_point(self, type:str, coordinates: list) -> ogr.Geometry:
+    def create_point(self, coordinates: Sequence, **kwargs) -> ogr.Geometry:
         return self._add_point(ogr.Geometry(ogr.wkbPoint), coordinates)
 
-    def create_geometrycollection(self, type:str, geometries: List[dict]) -> ogr.Geometry:
+    def create_geometrycollection(self, geometries: List[dict], **kwargs) -> ogr.Geometry:
         collection = ogr.Geometry(ogr.wkbGeometryCollection)
         for geometry in geometries:
             collection.AddGeometry(self.create(geometry))
         return collection
 
-    def create_multilinestring(self, type:str, coordinates: List[Sequence]) -> ogr.Geometry:
+    def create_multilinestring(self, coordinates: List[Sequence], **kwargs) -> ogr.Geometry:
         linestring = ogr.Geometry(ogr.wkbMultiLineString)
         for line_coordinates in coordinates:
-            linestring.AddGeometry(self.create_linestring("LineString", line_coordinates))
+            linestring.AddGeometry(self.create_linestring(line_coordinates))
         return linestring
 
     def _add_point(self, geometry: ogr.Geometry, point: Sequence) -> ogr.Geometry:
@@ -69,8 +69,7 @@ class GeometryBuilder:
 
 
 class GeometryGeoJson:
-
-    def __init__(self, precision=None):
+    def __init__(self, precision: int = None):
         self.precision = precision or 15
 
     def convert(self, geometry: ogr.Geometry) -> dict:
@@ -80,7 +79,6 @@ class GeometryGeoJson:
         except AttributeError:
             raise ValueError(f"{geometry_type_lower} is not supported")
         return handler(geometry)
-
 
     def convert_polygon(self, geometry: ogr.Geometry) -> (str, dict):
         coordinates = [
@@ -134,7 +132,7 @@ class GeometryGeoJson:
         ]
 
 
-def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision=None) -> dict:
+def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision: int = None) -> dict:
     if flatten:
         geometry.FlattenTo2D()
 
@@ -156,13 +154,19 @@ def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geome
     return result_geometry
 
 
-def transform_geojson(geometry: dict, from_epsg: int, to_epsg: int, flatten: bool = True, precision=None) -> dict:
+def transform_geojson(
+    geometry: dict,
+    from_epsg: int,
+    to_epsg: int,
+    flatten: bool = True,
+    precision: int = None,
+) -> dict:
     ogr_geometry = GeometryBuilder(flatten=flatten).create(geometry)
     new_geometry = transform(ogr_geometry, from_epsg, to_epsg)
     return to_geojson(new_geometry, flatten=False, precision=precision)
 
 
-def make_valid_geojson(geometry: dict, precision=None) -> dict:
+def make_valid_geojson(geometry: dict, precision: int = None) -> dict:
     gdal_geometry: ogr.Geometry = GeometryBuilder().create(geometry)
     gdal_geometry = make_valid(gdal_geometry)
     return GeometryGeoJson(precision=precision).convert(gdal_geometry)
@@ -191,7 +195,7 @@ def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
         valid_geometry = union_geometry
 
         # cast to input type if possible
-        if(
+        if (
             geometry_type == "MULTIPOLYGON" and
             valid_geometry.GetGeometryName() == "POLYGON"
         ):
