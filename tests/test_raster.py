@@ -1,8 +1,8 @@
 import io
 import json
 import os.path
-import tempfile
 import sys
+import tempfile
 
 import affine
 import numpy as np
@@ -13,11 +13,8 @@ from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
 from gdal_boots.gdal import GeoInfo, RasterDataset
-from gdal_boots.geometry import (
-    GeometryBuilder,
-    transform as geometry_transform,
-    to_geojson
-)
+from gdal_boots.geometry import GeometryBuilder, to_geojson
+from gdal_boots.geometry import transform as geometry_transform
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
 np.random.seed(31415926)

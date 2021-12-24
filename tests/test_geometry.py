@@ -2,13 +2,7 @@ import json
 
 import pytest
 
-from gdal_boots.geometry import (
-    GeometryBuilder,
-    to_geojson,
-    transform,
-    transform_geojson,
-    make_valid_geojson
-)
+from gdal_boots.geometry import GeometryBuilder, make_valid_geojson, to_geojson, transform, transform_geojson
 
 
 @pytest.fixture

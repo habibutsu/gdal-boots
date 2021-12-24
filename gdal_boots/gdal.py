@@ -278,7 +278,7 @@ class RasterDataset:
             (max_x, max_y),
         ] = self.bounds(epsg=epsg)
 
-        polygon = GeometryBuilder().create_polygon("Polygon", [[
+        polygon = GeometryBuilder().create_polygon([[
             (min_x, min_y),
             (max_x, min_y),
             (max_x, max_y),
