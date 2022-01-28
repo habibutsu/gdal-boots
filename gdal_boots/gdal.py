@@ -702,6 +702,13 @@ class RasterDataset:
             warped_ds[:] = img
         return warped_ds, mask_ds
 
+    def union(self, other_ds: List[RasterDataset]) -> RasterDataset:
+        geom = self.bounds_polygon()
+        for ds in other_ds:
+            geom = geom.Union(ds.bounds_polygon())
+        x_min, x_max, y_min, y_max = geom.GetEnvelope()
+        return self.warp(bbox=(x_min, y_min, x_max, y_max), bbox_epsg=self.geoinfo.epsg, extra_ds=other_ds)
+
 
 class Feature:
     def __init__(self, feature):
