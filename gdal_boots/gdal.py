@@ -289,15 +289,23 @@ class RasterDataset:
         return polygon
 
     def set_bounds(self, coords, epsg=None, resolution=None):
+        '''
+            coords - xmin, ymin, xmax, ymax
+            epsg - projection
+            resolution - x_res, y_res
+        '''
         x, y = np.array(coords).T
         x_size, y_size = self.shape
-        res_x = (x.max() - x.min()) / x_size
-        rex_y = (y.max() - y.min()) / y_size
+        if resolution:
+            res_x, res_y = resolution
+        else:
+            res_x = (x.max() - x.min()) / x_size
+            res_y = (y.max() - y.min()) / y_size
         self.geoinfo = GeoInfo(
             epsg=epsg,
             transform=affine.Affine(
                 res_x, 0.0, x.min(),
-                0.0, -rex_y, y.max()
+                0.0, -res_y, y.max()
             )
         )
 
