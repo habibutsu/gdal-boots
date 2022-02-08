@@ -447,7 +447,7 @@ def test_meta_save_load():
         ds.meta['not work'] = 'not work'
 
     # python 3.9 feature
-    if sys.version_info >= (3,9,0):
+    if sys.version_info >= (3, 9, 0):
         meta |= {'test1': 'string', 'test2': 1.4}
         ds.meta |= {'test1': 'string', 'test2': 1.4}
     else:
@@ -457,3 +457,23 @@ def test_meta_save_load():
         ds.meta = ds_meta
 
     check_meta(meta)
+
+
+def test_raster_union():
+    gi1 = GeoInfo(epsg=32628, transform=affine.Affine(10, 0, 0, 0, -10, 0))
+    ds1 = RasterDataset.create(shape=(3, 3), geoinfo=gi1, dtype=int)
+    ds1[:] = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]).T
+
+    gi2 = GeoInfo(epsg=32628, transform=affine.Affine(10, 0, 10, 0, -10, 0))
+    ds2 = RasterDataset.create(shape=(3, 3), geoinfo=gi2, dtype=int)
+    ds2[:] = np.array([[4, 5, 6], [7, 8, 9], [1, 2, 3]]).T
+
+    ds = ds1.union([ds2])
+    assert np.array_equal(ds[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [1, 2, 3]]).T)
+
+    gi3 = GeoInfo(epsg=32628, transform=affine.Affine(10, 0, 0, 0, -10, 10))
+    ds3 = RasterDataset.create(shape=(3, 3), geoinfo=gi3, dtype=int)
+    ds3[:] = np.array([[3, 1, 2], [6, 4, 5], [9, 7, 8]]).T
+
+    ds = ds1.union([ds2, ds3])
+    assert np.array_equal(ds[:], np.array([[3, 1, 2, 3], [6, 4, 5, 6], [9, 7, 8, 9], [0, 1, 2, 3]]).T)

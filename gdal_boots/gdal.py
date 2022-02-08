@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 from uuid import uuid4
 
 import affine
@@ -176,13 +176,13 @@ class RasterDataset:
             self.ds.SetMetadata(encoded_value)
 
     @property
-    def shape(self) -> Tuple[int]:
+    def shape(self) -> Union[Tuple[int, int], Tuple[int, int, int]]:
         ds = self.ds
         # it's tradeoff between convenience of using and explicitness
         if ds.RasterCount == 1:
             # choose convenience
-            return (ds.RasterYSize, ds.RasterXSize)
-        return (ds.RasterCount, ds.RasterYSize, ds.RasterXSize)
+            return ds.RasterYSize, ds.RasterXSize
+        return ds.RasterCount, ds.RasterYSize, ds.RasterXSize
 
     @property
     def dtype(self):
@@ -558,16 +558,18 @@ class RasterDataset:
 
     def warp(
         self,
-        bbox,
-        bbox_epsg=4326,
-        resampling=Resampling.near, extra_ds=[],
-        resolution=None,
-        out_epsg=None
+        bbox: Tuple[float, float, float, float],
+        bbox_epsg: int = 4326,
+        resampling: Resampling = Resampling.near,
+        extra_ds: List[RasterDataset] = None,
+        resolution: Tuple[int, int] = None,
+        out_epsg: int = None,
     ) -> RasterDataset:
-        '''
-            bbox - x_min, y_min, x_max, y_max
-        '''
-        x_res, y_res = resolution if resolution else (None, None)
+        """
+        bbox: (x_min, y_min, x_max, y_max)
+        """
+        extra_ds = extra_ds or []
+        x_res, y_res = resolution or (None, None)
         ds = gdal.Warp('',
                        [other.ds for other in extra_ds] + [self.ds],
                        dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
@@ -580,12 +582,16 @@ class RasterDataset:
                        )
         return type(self)(ds)
 
-    def fast_warp_as_array(self, bbox, resolution=None) -> Tuple[np.array, GeoInfo]:
-        '''
-            special case for fast sample from image
+    def fast_warp_as_array(
+        self,
+        bbox: Tuple[float, float, float, float],
+        resolution: Tuple[int, int] = None,
+    ) -> Tuple[np.array, GeoInfo]:
+        """
+        special case for fast sample from image
 
-            bbox: x_min, y_min, x_max, y_max
-        '''
+        bbox: x_min, y_min, x_max, y_max
+        """
         if not (len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
             raise ValueError('input bbox should be in format: [x_min, y_min, x_max, y_max]')
 
@@ -645,7 +651,11 @@ class RasterDataset:
             )
         )
 
-    def fast_warp(self, bbox, resolution=None) -> RasterDataset:
+    def fast_warp(
+        self,
+        bbox: Tuple[float, float, float, float],
+        resolution: Tuple[int, int] = None,
+    ) -> RasterDataset:
         warp_img, geoinfo = self.fast_warp_as_array(bbox, resolution)
 
         ds_warp = RasterDataset.create(
@@ -659,15 +669,16 @@ class RasterDataset:
     def crop_by_geometry(
         self,
         geometry: Union[dict, ogr.Geometry],
-        epsg=4326,
-        extra_ds=[],
-        resolution=None,
-        out_epsg=None,
-        resampling=Resampling.near,
-        apply_mask=True,
+        epsg: int = 4326,
+        extra_ds: List[RasterDataset] = None,
+        resolution: Tuple[int, int] = None,
+        out_epsg: int = None,
+        resampling: Resampling = Resampling.near,
+        apply_mask: bool = True,
     ) -> Tuple[RasterDataset, RasterDataset]:
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
+        extra_ds = extra_ds or []
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
@@ -691,9 +702,15 @@ class RasterDataset:
             warped_ds[:] = img
         return warped_ds, mask_ds
 
+    def union(self, other_ds: List[RasterDataset]) -> RasterDataset:
+        geom = self.bounds_polygon()
+        for ds in other_ds:
+            geom = geom.Union(ds.bounds_polygon())
+        x_min, x_max, y_min, y_max = geom.GetEnvelope()
+        return self.warp(bbox=(x_min, y_min, x_max, y_max), bbox_epsg=self.geoinfo.epsg, extra_ds=other_ds)
+
 
 class Feature:
-
     def __init__(self, feature):
         self.feature = feature
 
