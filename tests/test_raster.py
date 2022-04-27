@@ -355,6 +355,12 @@ def test_crop_by_geometry():
         assert cropped_ds_3857.geoinfo.epsg == 3857
         cropped_ds_3857.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
 
+    small_geometry = shapely.geometry.mapping(
+        shapely.geometry.shape(geometry).buffer(-0.003554))
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with pytest.raises(RuntimeError):
+            cropped_ds, mask = ds1.crop_by_geometry(small_geometry)
+
 
 def test_write():
     img = np.ones((3, 5, 5))
@@ -427,13 +433,37 @@ def test_meta_save_load():
     )
     ds[:] = np.random.randint(64, 128, shape, np.uint8)
 
+    def assert_metadata(expected_meta, meta):
+        for k, v in expected_meta.items():
+            assert k in meta
+            assert meta[k] == v
+
     def check_meta(desired_meta: dict):
-        data = ds.to_bytes(GTiff())
-        loaded_ds = RasterDataset.from_bytes(data)
-        metadata = loaded_ds.meta
-        for k, v in desired_meta.items():
-            assert k in metadata
-            assert metadata[k] == v
+        formats = {
+            'jp2': JP2OpenJPEG(),
+            'tiff': GTiff(compress=GTiff.Compress.deflate)
+        }
+
+        for ext, driver in formats.items():
+
+            # ds -> file -> ds
+            with tempfile.NamedTemporaryFile(suffix=f'.{ext}') as fd:
+                ds.to_file(fd.name, driver)
+                with RasterDataset.open(fd.name) as ds_loaded:
+                    assert_metadata(desired_meta, ds_loaded.meta)
+
+            # ds -> bytes -> file -> ds
+            with tempfile.NamedTemporaryFile(suffix=f'.{ext}') as fd:
+                fd.write(ds.to_bytes(driver))
+                fd.file.flush()
+                with RasterDataset.open(fd.name) as ds_loaded:
+                    assert_metadata(desired_meta, ds_loaded.meta)
+
+            # ds -> bytes -> ds
+            data_b = ds.to_bytes(driver)
+            with RasterDataset.from_bytes(data_b) as ds_loaded:
+                assert_metadata(desired_meta, ds_loaded.meta)
+
 
     meta = {'one': 1}
     ds.meta = meta

@@ -99,6 +99,7 @@ class JP2OpenJPEG(DriverOptions):
     blockysize: int = 1024
     nbits: int = None
     tileparts: str = 'disabled'
+    write_metadata: bool = True
 
 
 @dataclass
