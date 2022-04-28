@@ -581,8 +581,8 @@ class RasterDataset:
         ds = gdal.Warp('',
                        [other.ds for other in extra_ds] + [self.ds],
                        dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
-                       xRes=x_res or self.geoinfo.transform.a,
-                       yRes=y_res or -self.geoinfo.transform.e,
+                       xRes=x_res,
+                       yRes=y_res,
                        outputBounds=bbox,  # (minX, minY, maxX, maxY)
                        outputBoundsSRS='epsg:{}'.format(bbox_epsg),
                        resampleAlg=resampling.value,
