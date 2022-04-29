@@ -108,6 +108,12 @@ class GeoInfo:
             transform=affine.Affine.from_gdal(*ds.GetGeoTransform())
         )
 
+    def scale(self, *args):
+        return type(self)(
+            self.epsg,
+            self.transform * affine.Affine.scale(*args)
+        )
+
 
 class Resampling(Enum):
     near = 'near'
