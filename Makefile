@@ -6,3 +6,6 @@ test_3.4:
 	pip install -r requirements.txt && \
 	python3 -m py.test -vv -s ./tests/ \
 	"
+
+build-wheel:
+	python setup.py bdist_wheel

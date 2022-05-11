@@ -140,5 +140,8 @@ cython_debug/
 # PyCharm project settings
 .idea/
 
+# VSCode
+.vscode
+
 # Local assets
 tests/fixtures/extra/

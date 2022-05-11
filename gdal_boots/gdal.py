@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import io
 import os
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Callable, Any
 from uuid import uuid4
+from functools import singledispatchmethod
+
+from osgeo import ogr
 
 import affine
 import numpy as np
@@ -30,11 +34,14 @@ from osgeo.osr import SpatialReference
 
 from .geometry import GeometryBuilder
 from .geometry import transform as geometry_transform
+from .options import DriverOptions
 
 try:
     import orjson as json
 except ImportError:
     import json
+
+logger = logging.getLogger(__name__)
 
 DTYPE_TO_GDAL = {
     np.uint8: gdal.GDT_Byte,
@@ -51,6 +58,21 @@ GDAL_TO_DTYPE = {
     gdal_dtype: dtype
     for dtype, gdal_dtype in DTYPE_TO_GDAL.items()
 }
+
+LOG_LEVELS = {
+    gdal.CE_Debug: logger.debug,
+    gdal.CE_None: logger.info,
+    gdal.CE_Warning: logger.warning,
+    gdal.CE_Failure: logger.error,
+    gdal.CE_Fatal: logger.critical,
+}
+
+def error_handler(err_level, err_no, err_msg):
+    LOG_LEVELS[err_level]("error_no=%s, %s", err_no, err_msg)
+
+
+# gdal.PushErrorHandler('CPLQuietErrorHandler')
+gdal.PushErrorHandler(error_handler)
 gdal.UseExceptions()
 
 
@@ -183,6 +205,9 @@ class RasterDataset:
 
     @property
     def shape(self) -> Union[Tuple[int, int], Tuple[int, int, int]]:
+        '''
+            numpy like shape
+        '''
         ds = self.ds
         # it's tradeoff between convenience of using and explicitness
         if ds.RasterCount == 1:
@@ -195,7 +220,7 @@ class RasterDataset:
         return GDAL_TO_DTYPE[self.ds.GetRasterBand(1).DataType]
 
     @property
-    def resolution(self):
+    def resolution(self) -> Tuple[int, int]:
         return np.array([self.geoinfo.transform.a, -self.geoinfo.transform.e])
 
     @property
@@ -207,7 +232,7 @@ class RasterDataset:
         ]
 
     @nodata.setter
-    def nodata(self, value):
+    def nodata(self, value: Number):
         ds = self.ds
         if not isinstance(value, list):
             value = [value] * ds.RasterCount
@@ -294,7 +319,7 @@ class RasterDataset:
         polygon.SetCoordinateDimension(2)
         return polygon
 
-    def set_bounds(self, coords, epsg=None, resolution=None):
+    def set_bounds(self, coords: Tuple[int, int, int, int], epsg=None, resolution=None):
         '''
             coords - xmin, ymin, xmax, ymax
             epsg - projection
@@ -460,7 +485,7 @@ class RasterDataset:
         self.geoinfo = geoinfo
         return self
 
-    def to_file(self, filename: str, options=None) -> None:
+    def to_file(self, filename: str, options: DriverOptions) -> None:
         driver = options.driver
         ds = driver.CreateCopy(
             filename,
@@ -491,8 +516,12 @@ class RasterDataset:
         self._mem_id = mem_id
         return self
 
+    def to_stream(self, stream, options):
+        data = self.to_bytes(options)
+        stream.write(data)
+
     @classmethod
-    def from_bytes(cls, data, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
+    def from_bytes(cls, data: bytes, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
         mem_id = f'/vsimem/{uuid4()}'
         if ext:
             mem_id = f'{mem_id}.{ext}'
@@ -502,7 +531,7 @@ class RasterDataset:
         self._mem_id = mem_id
         return self
 
-    def to_bytes(self, options) -> bytes:
+    def to_bytes(self, options: DriverOptions) -> bytes:
         if not self.ds:
             raise ValueError('dataset was closed')
 
@@ -525,22 +554,20 @@ class RasterDataset:
         gdal.Unlink(mem_id)
         return data
 
-    def to_vector(self, value=-1) -> VectorDataset:
+    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any]]=None) -> VectorDataset:
         '''
+
         drv = ogr.GetDriverByName("Memory")
         feature_ds = drv.CreateDataSource("memory_name")
 
         https://gis.stackexchange.com/questions/328358/gdal-warp-memory-datasource-as-cutline
 
         '''
+        vds = VectorDataset.create(self.geoinfo.epsg)
         band = self.ds.GetRasterBand(1)
-        mem_id = f'/vsimem/{uuid4()}'
-        ds = ogr.GetDriverByName('MEMORY').CreateDataSource(mem_id)
-        layer = ds.CreateLayer('geometry', srs=self.geoinfo.srs)
-        gdal.Polygonize(band, None, layer, value, [], callback=None)
-        ds.FlushCache()
-
-        return VectorDataset(ds)
+        gdal.Polygonize(band, band, vds.layers.first().layer, field_id, [], callback=callback)
+        vds.ds.FlushCache()
+        return vds
 
     def _to_vector(self):
         band = self.ds.GetRasterBand(1)
@@ -738,22 +765,30 @@ class Feature:
     def geometry(self):
         return self.feature.geometry()
 
+    # TODO
+    # def simplify(self, tolerance: int):
+    #     self.geometry.SimplifyPreserveTopology(tolerance)
+
 
 class Features:
 
     def __init__(self, layer):
         self.layer = layer
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self.layer.GetFeatureCount()
 
-    def __getitem__(self, idx):
+    @property
+    def size(self):
+        return len(self)
+
+    def __getitem__(self, idx) -> Feature:
         return Feature(self.layer.GetFeature(idx))
 
 
 class Layer:
 
-    def __init__(self, layer):
+    def __init__(self, layer: ogr.Layer):
         self.layer = layer
 
     @property
@@ -761,8 +796,32 @@ class Layer:
         return self.layer.GetName()
 
     @property
+    def epsg(self):
+        return self.layer.GetSpatialRef().GetAuthorityCode(None)
+
+    @property
     def features(self):
         return Features(self.layer)
+
+    def rasterize(self, raster: RasterDataset, all_touched=True):
+        shape = raster.shape
+        if len(shape) == 3:
+            bands = list(range(1, shape[0] + 1))
+            burn_values = [1] * shape[0]
+        else:
+            bands = [1]
+            burn_values = [1]
+
+        gdal.RasterizeLayer(
+            raster.ds,
+            bands=bands,
+            layer=self.layer,
+            burn_values=burn_values,
+            options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
+        )
+
+    def __repr__(self):
+        return f'<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>'
 
 
 class Layers:
@@ -773,18 +832,27 @@ class Layers:
     def first(self):
         return Layer(self.ds.GetLayerByIndex(0))
 
-    def __getitem__(self, idx):
-        return Layer(self.ds.GetLayerByIndex(idx))
+    def __getitem__(self, key: Union[str, int]):
+        if isinstance(key, str):
+            fn = self.ds.GetLayerByName
+        elif isinstance(key, int):
+            fn = self.ds.GetLayerByIndex
+        else:
+            raise ValueError("Unsuported type")
+        return Layer(fn(key))
 
     def __iter__(self):
         def _iterator():
             for i in range(len(self)):
                 yield Layer(self.ds.GetLayerByIndex(i))
-
         return iter(_iterator())
 
     def __len__(self):
         return self.ds.GetLayerCount()
+
+    @property
+    def size(self):
+        return len(self)
 
 
 class VectorDataset:
@@ -796,19 +864,32 @@ class VectorDataset:
         # self.layers = None
         self._mem_id = None
 
+    def __repr__(self):
+        if self.ds is None:
+            return f'<{type(self).__name__} {hex(id(self))} empty>'
+        layers_str = ",".join([
+            layer.name
+            for layer in self.layers
+        ])
+        return f'<{type(self).__name__} {hex(id(self))} {layers_str}>'
+
     @classmethod
-    def open(cls, filename, open_flag=gdal.GA_ReadOnly):
+    def open(cls, filename: str, open_flag=gdal.GA_ReadOnly):
         ds = gdal.OpenEx(filename, gdal.OF_VECTOR | open_flag)
         return cls(ds)
 
     @classmethod
-    def create(cls):
+    def create(cls, epsg: int = None):
         mem_id = f'/vsimem/{uuid4()}'
         drv = ogr.GetDriverByName('MEMORY')
         ds = drv.CreateDataSource(mem_id)
 
-        ds.CreateLayer()
-
+        # geoinfo: GeoInfo = None
+        srs = None
+        if epsg:
+            srs = SpatialReference()
+            srs.ImportFromEPSG(epsg)
+        layer = ds.CreateLayer('geometry', srs=srs)
         # gdal.FileFromMemBuffer(mem_id, data)
         # ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
         self = cls(ds)
@@ -816,7 +897,7 @@ class VectorDataset:
         # ds_ = gdal.VectorTranslate('', ds_mem, format='MEMORY', **ext_args)
         return self
 
-    def to_file(self, filename, options):
+    def to_file(self, filename: str, options: DriverOptions):
         # # No such file or directory
         # gdal.VectorTranslate('', mem_id, format='MEMORY')
         # gdal.VectorTranslate(filename, self.ds, format='GPKG')
@@ -845,39 +926,34 @@ class VectorDataset:
         out_ds.Destroy()
 
     @classmethod
-    def from_string(cls, value):
-        # driver = ogr.GetDriverByName('Memory')
-        # self.ds = driver.CreateDataSource('memory')
-        # gdal.VectorTranslate('', df_geom_str, format='MEMORY', srcSRS=to_crs, dstSRS=to_crs)
-        pass
+    def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
+        mem_id = f'/vsimem/{uuid4()}'
+        if ext:
+            mem_id = f'{mem_id}.{ext}'
+        gdal.FileFromMemBuffer(mem_id, data)
+        ds = gdal.OpenEx(mem_id, open_flag)
+        self = cls(ds)
+        self._mem_id = mem_id
+        return self
 
     @classmethod
-    def to_string(self):
-        pass
+    def to_bytes(self, options):
+        raise NotImplementedError()
 
     # @cached_property
     @property
     def layers(self):
         return Layers(self.ds)
 
-    def rasterize(self, raster, all_touched=True):
-        shape = raster.shape
-        if len(shape) == 3:
-            bands = list(range(1, shape[0] + 1))
-            burn_values = [1] * shape[0]
-        else:
-            bands = [1]
-            burn_values = [1]
-
+    def rasterize(self, raster: RasterDataset, all_touched=True):
         for layer in self.layers:
-            gdal.RasterizeLayer(
-                raster.ds,
-                bands=bands,
-                layer=layer.layer,
-                burn_values=burn_values,
-                options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
-            )
+            layer.rasterize(raster)
         return raster
 
-    def simplify(self):
+    def simplify(self, tolerance=5):
+        for layer in self.layers:
+            for feature in layer.features:
+                feature.simplify(tolerance)
+
+    def union(self, other):
         pass

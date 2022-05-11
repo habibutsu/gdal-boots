@@ -102,13 +102,19 @@ def test_vectorize():
         transform=affine.Affine(10.0, 0.0, 600000.0, 0.0, -10.0, 5700000.0)
     )
 
-    with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
-        ds[:, :] = img
+    import tqdm
+    from typing import Callable, Any
 
-        v_ds = ds.to_vector()
-        assert v_ds
-        with tempfile.NamedTemporaryFile(suffix='.gpkg') as fd:
-            v_ds.to_file(fd.name, GPKG())
+    with tqdm.tqdm(total=100) as pbar:
+        tqdm_progress: Callable[[float, str, Any]] = lambda n, msg, _: pbar.update(int(round(n * 100 - pbar.n)))
+        with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
+            ds[:, :] = img
+
+            # v_ds = ds.to_vector(callback=gdal.TermProgress)
+            v_ds = ds.to_vector(callback=tqdm_progress)
+            assert v_ds
+            with tempfile.NamedTemporaryFile(suffix='.gpkg') as fd:
+                v_ds.to_file(fd.name, GPKG())
 
 
 def test_memory():
@@ -157,7 +163,8 @@ def test_warp(minsk_polygon):
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 
     with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
-        warped_ds = ds.warp(bbox)
+        warped_ds = ds.warp(bbox, resolution=(10, 10))
+
         assert (warped_ds.geoinfo.transform.a, -warped_ds.geoinfo.transform.e) == (10, 10)
 
         with tempfile.NamedTemporaryFile(suffix='.tiff') as fd:
