@@ -57,7 +57,7 @@ class GeometryBuilder:
 
     def _add_point(self, geometry: ogr.Geometry, point: Sequence) -> ogr.Geometry:
         if self.flatten:
-            geometry.AddPoint_2D(*point)
+            geometry.AddPoint_2D(*point[:2])
         else:
             geometry.AddPoint(*point)
         return geometry

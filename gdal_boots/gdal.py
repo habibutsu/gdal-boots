@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import io
+import math
 import os
 import logging
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import List, Tuple, Union, Callable, Any
+from typing import List, Tuple, Union, Callable, Any, Iterable
 from uuid import uuid4
 from functools import singledispatchmethod
 
@@ -42,6 +43,8 @@ except ImportError:
     import json
 
 logger = logging.getLogger(__name__)
+
+RawGeometry = Union[dict, ogr.Geometry]
 
 DTYPE_TO_GDAL = {
     np.uint8: gdal.GDT_Byte,
@@ -190,7 +193,7 @@ class RasterDataset:
     def meta(self) -> dict:
         meta = self.ds.GetMetadata()
         return imdict({
-            k: json.loads(v.strip('json:')) if v.startswith('json:') else v
+            k: json.loads(v[5:]) if v.startswith('json:') else v
             for k, v in meta.items()
         })
 
@@ -214,6 +217,10 @@ class RasterDataset:
             # choose convenience
             return ds.RasterYSize, ds.RasterXSize
         return ds.RasterCount, ds.RasterYSize, ds.RasterXSize
+
+    @property
+    def size(self) -> int:
+        return int(np.prod(self.shape))
 
     @property
     def dtype(self):
@@ -319,14 +326,14 @@ class RasterDataset:
         polygon.SetCoordinateDimension(2)
         return polygon
 
-    def set_bounds(self, coords: Tuple[int, int, int, int], epsg=None, resolution=None):
+    def set_bounds(self, coords: Iterable[Tuple[float, float]], epsg=None, resolution=None):
         '''
-            coords - xmin, ymin, xmax, ymax
+            coords - [(xmin, ymin), (xmax, ymax)]
             epsg - projection
             resolution - x_res, y_res
         '''
         x, y = np.array(coords).T
-        x_size, y_size = self.shape
+        y_size, x_size = self.shape[-2:]
         if resolution:
             res_x, res_y = resolution
         else:
@@ -713,7 +720,7 @@ class RasterDataset:
 
     def crop_by_geometry(
         self,
-        geometry: Union[dict, ogr.Geometry],
+        geometry: RawGeometry,
         epsg: int = 4326,
         extra_ds: List[RasterDataset] = None,
         resolution: Tuple[int, int] = None,
@@ -753,6 +760,42 @@ class RasterDataset:
             geom = geom.Union(ds.bounds_polygon())
         x_min, x_max, y_min, y_max = geom.GetEnvelope()
         return self.warp(bbox=(x_min, y_min, x_max, y_max), bbox_epsg=self.geoinfo.epsg, extra_ds=other_ds)
+
+    def values_by_points(self, points: List[RawGeometry]) -> list:
+        if not points:
+            return []
+
+        geom_builder = GeometryBuilder()
+
+        gt_forward = self.ds.GetGeoTransform()
+        gt_reverse = gdal.InvGeoTransform(gt_forward)
+
+        values = []
+        data = self[:]
+        h, w = self.shape[-2:]
+        plain_raster = len(self.shape) == 2
+
+        for point in points:
+            if not isinstance(point, ogr.Geometry):
+                point = geom_builder(point)
+            if point.GetGeometryType() == 'POINT':
+                raise ValueError(f'type of geometry is not supported: {point.GetGeometryType()}')
+            mx, my = point.GetX(), point.GetY()  # coord in map units
+
+            # Convert from map to pixel coordinates
+            px, py = gdal.ApplyGeoTransform(gt_reverse, mx, my)
+            px = math.floor(px)  # x pixel
+            py = math.floor(py)  # y pixel
+
+            value = None
+            if 0 <= px < w and 0 <= py < h:
+                if plain_raster:
+                    value = data[py, px]
+                else:
+                    value = data[:, py, px]
+            values.append(value)
+
+        return values
 
 
 class Feature:
