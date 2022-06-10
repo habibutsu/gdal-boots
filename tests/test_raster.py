@@ -514,3 +514,32 @@ def test_raster_union():
 
     ds = ds1.union([ds2, ds3])
     assert np.array_equal(ds[:], np.array([[3, 1, 2, 3], [6, 4, 5, 6], [9, 7, 8, 9], [0, 1, 2, 3]]).T)
+
+
+@pytest.mark.parametrize("points,expected", [
+    [[], []],
+    [[{'type': 'Point', 'coordinates': [0, 0]}], [None]],
+    [[{'type': 'Point', 'coordinates': [-1, -1]}], [None]],
+    [[{'type': 'Point', 'coordinates': [0, 0.1]}], [11]],
+    [[{'type': 'Point', 'coordinates': [0.2, 2.5]}], [1]],
+    [[{'type': 'Point', 'coordinates': [2.9, 4.9]}], [None]],
+    [[{'type': 'Point', 'coordinates': [3, 4.9]}], [None]],
+    [[{'type': 'Point', 'coordinates': [2.9, 5]}], [None]],
+    [[{'type': 'Point', 'coordinates': [3, 5]}], [None]],
+    [[{'type': 'Point', 'coordinates': coord} for coord in [[0.2, 2.5], [0, 0.1], [10, 10]]], [1, 11, None]],
+])
+def test_values_by_points(points, expected):
+    ds = RasterDataset.create(shape=(3, 5), dtype=int)
+    ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
+    ds.set_bounds([(0, 0), ds.shape[::-1]], epsg=4326)
+
+    assert ds.values_by_points(points) == expected
+
+
+def test_values_by_points_multiband():
+    ds = RasterDataset.create(shape=(2, 3, 5), dtype=int)
+    ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
+    ds.set_bounds([(0, 0), ds.shape[-2:][::-1]], epsg=4326)
+
+    value = ds.values_by_points([{'type': 'Point', 'coordinates': [0.2, 2.5]}])[0]
+    assert np.array_equal(value, np.array([1, 16]))
