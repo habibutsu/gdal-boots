@@ -319,14 +319,14 @@ class RasterDataset:
         polygon.SetCoordinateDimension(2)
         return polygon
 
-    def set_bounds(self, coords: Tuple[int, int, int, int], epsg=None, resolution=None):
+    def set_bounds(self, coords: Iterable[Tuple[float, float]], epsg=None, resolution=None):
         '''
-            coords - xmin, ymin, xmax, ymax
+            coords - [(xmin, ymin), (xmax, ymax)]
             epsg - projection
             resolution - x_res, y_res
         '''
         x, y = np.array(coords).T
-        x_size, y_size = self.shape
+        y_size, x_size = self.shape[-2:]
         if resolution:
             res_x, res_y = resolution
         else:
