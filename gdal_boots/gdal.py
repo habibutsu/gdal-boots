@@ -599,12 +599,14 @@ class RasterDataset:
 
     def warp(
         self,
-        bbox: Tuple[float, float, float, float],
+        bbox: Tuple[float, float, float, float] = None,
         bbox_epsg: int = 4326,
         resampling: Resampling = Resampling.near,
         extra_ds: List[RasterDataset] = None,
         resolution: Tuple[int, int] = None,
         out_epsg: int = None,
+        nodata=None,
+        out_nodata=None
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
@@ -617,9 +619,11 @@ class RasterDataset:
                        xRes=x_res,
                        yRes=y_res,
                        outputBounds=bbox,  # (minX, minY, maxX, maxY)
-                       outputBoundsSRS='epsg:{}'.format(bbox_epsg),
+                       outputBoundsSRS='epsg:{}'.format(bbox_epsg) if bbox else None,
                        resampleAlg=resampling.value,
-                       format="MEM"
+                       format="MEM",
+                       srcNodata=self.nodata[0] if self.nodata[0] else nodata,
+                       dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
                        )
         return type(self)(ds)
 
