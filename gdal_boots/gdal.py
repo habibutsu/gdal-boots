@@ -190,7 +190,7 @@ class RasterDataset:
     def meta(self) -> dict:
         meta = self.ds.GetMetadata()
         return imdict({
-            k: json.loads(v.strip('json:')) if v.startswith('json:') else v
+            k: json.loads(v[5:]) if v.startswith('json:') else v
             for k, v in meta.items()
         })
 
