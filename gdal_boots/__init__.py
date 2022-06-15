@@ -1,4 +1,4 @@
-__version__ = '0.1.40'
+__version__ = '0.1.41'
 
 from .gdal import GeoInfo, RasterDataset, Resampling, VectorDataset
 from .options import *
