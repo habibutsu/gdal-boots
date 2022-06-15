@@ -750,7 +750,7 @@ class RasterDataset:
         mask_img = mask_ds[:]
         if apply_mask:
             img = warped_ds[:].copy()
-            img[mask_img == 0] = 0
+            img[mask_img == 0] = self.nodata[0] or 0
             warped_ds[:] = img
         return warped_ds, mask_ds
 
@@ -810,7 +810,7 @@ class Feature:
 
     @property
     def geometry(self):
-        return self.feature.geometry()
+        return self.feature.GetGeometryRef()
 
     # TODO
     # def simplify(self, tolerance: int):
