@@ -12,7 +12,7 @@ import tqdm
 from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
-from gdal_boots.gdal import GeoInfo, RasterDataset
+from gdal_boots.gdal import GeoInfo, RasterDataset, Resampling
 from gdal_boots.geometry import GeometryBuilder, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
@@ -368,6 +368,16 @@ def test_crop_by_geometry():
         with pytest.raises(RuntimeError):
             cropped_ds, mask = ds1.crop_by_geometry(small_geometry)
 
+    # crop by custom crs
+    # https://epsg.io/102033
+    aea_proj = '+proj=aea +lat_0=-32 +lon_0=-60 +lat_1=-5 +lat_2=-42 +x_0=0 +y_0=0 +ellps=aust_SA +units=m +no_defs +type=crs'
+    cropped_ds, mask_ds = ds1.crop_by_geometry(geometry, extra_ds=[ds2], out_proj4=aea_proj, apply_mask=False)
+    assert cropped_ds.geoinfo.proj4
+    img = cropped_ds[:]
+    assert (img.min(), img.max()) == (64, 191)
+
+    img = mask_ds[:]
+    assert (img.min(), img.max()) == (0, 1)
 
 def test_write():
     img = np.ones((3, 5, 5))

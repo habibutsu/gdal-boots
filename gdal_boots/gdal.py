@@ -104,19 +104,25 @@ class imdict(dict):
 class GeoInfo:
     epsg: int
     transform: affine.Affine
+    proj4: str = None
 
     @property
-    def srs(self):
+    def srs(self) -> SpatialReference:
         srs = SpatialReference()
-        srs.ImportFromEPSG(self.epsg)
+        if self.epsg:
+            srs.ImportFromEPSG(self.epsg)
+        elif self.proj4:
+            srs.ImportFromProj4(self.proj4)
         return srs
 
     def epsg_from_wkt(self, wkt):
-        srs = osr.SpatialReference()
+        srs = SpatialReference()
         srs.ImportFromWkt(wkt)
         # int(srs.GetAttrValue('AUTHORITY',1))
-
-        self.epsg = int(srs.GetAuthorityCode(None))
+        value = srs.GetAuthorityCode(None)
+        if not value:
+            raise ValueError("Could not get epsg code")
+        self.epsg = int(value)
 
     @classmethod
     def from_dataset(cls, ds):
@@ -126,11 +132,19 @@ class GeoInfo:
             # old versions
             srs = osr.SpatialReference(wkt=ds.GetProjection())
 
-        epsg = int(srs.GetAuthorityCode(None))
+        epsg = None
+        proj4 = None
+        epsg_str = srs.GetAuthorityCode(None)
+        if epsg_str:
+            epsg = int(epsg_str)
+        else:
+            proj4 = srs.ExportToProj4()
+
         # epsg = int(srs.GetAttrValue('AUTHORITY', 1))
         return cls(
             epsg=epsg,
-            transform=affine.Affine.from_gdal(*ds.GetGeoTransform())
+            transform=affine.Affine.from_gdal(*ds.GetGeoTransform()),
+            proj4=proj4
         )
 
     def scale(self, *args):
@@ -138,6 +152,14 @@ class GeoInfo:
             self.epsg,
             self.transform * affine.Affine.scale(*args)
         )
+
+    @property
+    def projection_str(self):
+        if self.epsg:
+            return f"epsg:{self.epsg}"
+        elif self.proj4:
+            return f"proj4:{self.proj4}"
+        return ""
 
 
 class Resampling(Enum):
@@ -265,7 +287,7 @@ class RasterDataset:
     def __repr__(self):
         if self.ds is None:
             return f'<{type(self).__name__} {hex(id(self))} empty>'
-        return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} epsg:{self.geoinfo.epsg}>'
+        return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} {self.geoinfo.projection_str}>'
 
     def bounds(self, epsg=None) -> np.array:
         '''
@@ -612,6 +634,7 @@ class RasterDataset:
         extra_ds: List[RasterDataset] = None,
         resolution: Tuple[int, int] = None,
         out_epsg: int = None,
+        out_proj4: str = None,
         nodata=None,
         out_nodata=None
     ) -> RasterDataset:
@@ -620,13 +643,27 @@ class RasterDataset:
         """
         extra_ds = extra_ds or []
         x_res, y_res = resolution or (None, None)
+        out_srs = None
+
+        if out_proj4 and out_epsg:
+            logger.warning("both parameters out_proj4 and out_epsg were specified, out_epsg will be ignored")
+        if out_epsg:
+            srs_obj = osr.SpatialReference()
+            srs_obj.ImportFromEPSG(out_epsg)
+            out_srs = srs_obj
+        if out_proj4:
+            out_srs = osr.SpatialReference()
+            out_srs.ImportFromProj4(out_proj4)
+        if not out_srs:
+            out_srs = self.geoinfo.srs
+
         ds = gdal.Warp('',
                        [other.ds for other in extra_ds] + [self.ds],
-                       dstSRS=f'epsg:{out_epsg}' if out_epsg else self.geoinfo.srs,
+                       dstSRS=out_srs,
                        xRes=x_res,
                        yRes=y_res,
                        outputBounds=bbox,  # (minX, minY, maxX, maxY)
-                       outputBoundsSRS='epsg:{}'.format(bbox_epsg) if bbox else None,
+                       outputBoundsSRS=None if bbox is None else 'epsg:{}'.format(bbox_epsg),
                        resampleAlg=resampling.value,
                        format="MEM",
                        srcNodata=self.nodata[0] if self.nodata[0] else nodata,
@@ -725,6 +762,7 @@ class RasterDataset:
         extra_ds: List[RasterDataset] = None,
         resolution: Tuple[int, int] = None,
         out_epsg: int = None,
+        out_proj4: str = None,
         resampling: Resampling = Resampling.near,
         apply_mask: bool = True,
     ) -> Tuple[RasterDataset, RasterDataset]:
@@ -739,6 +777,7 @@ class RasterDataset:
             extra_ds=extra_ds,
             resolution=resolution,
             out_epsg=out_epsg,
+            out_proj4=out_proj4,
             resampling=resampling
         )
         vect_ds = VectorDataset.open(geometry.ExportToJson())
