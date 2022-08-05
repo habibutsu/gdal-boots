@@ -106,7 +106,7 @@ def test_vectorize():
     from typing import Callable, Any
 
     with tqdm.tqdm(total=100) as pbar:
-        tqdm_progress: Callable[[float, str, Any]] = lambda n, msg, _: pbar.update(int(round(n * 100 - pbar.n)))
+        tqdm_progress: Callable[[float, str, Any], None] = lambda n, msg, _: pbar.update(int(round(n * 100 - pbar.n)))
         with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
             ds[:, :] = img
 
@@ -336,9 +336,9 @@ def test_crop_by_geometry():
         "coordinates": [[
             [-62.403073310852044, -34.02648590051866],
             [-62.40650653839111, -34.03818674708322],
-            [-62.39936113357544, -34.03943142302355],
-            [-62.3962926864624, -34.02765961447532],
-            [-62.403073310852044, -34.02648590051866]
+            [-62.398738861083984, -34.03943142302355],
+            [-62.395563125610344, -34.02780188173055],
+            [-62.403073310852044, -34.02648590051866],
         ]]
     }
 
@@ -346,6 +346,7 @@ def test_crop_by_geometry():
         cropped_ds, mask = ds1.crop_by_geometry(geometry, extra_ds=[ds2])
         cropped_ds.to_file(f'{tmp_dir}/cropped.png', PNG())
         cropped_ds_r100, _ = ds1.crop_by_geometry(geometry, extra_ds=[ds2], resolution=(100, 100))
+        cropped_ds_r100.to_file(f'{tmp_dir}/cropped_100.png', PNG())
         assert all((np.array(cropped_ds.shape) / 10).round() == cropped_ds_r100.shape)
 
     # crop by 3857
@@ -363,10 +364,9 @@ def test_crop_by_geometry():
         cropped_ds_3857.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
 
     small_geometry = shapely.geometry.mapping(
-        shapely.geometry.shape(geometry).buffer(-0.003554))
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        with pytest.raises(RuntimeError):
-            cropped_ds, mask = ds1.crop_by_geometry(small_geometry)
+        shapely.geometry.shape(geometry).buffer(-0.003868))
+    with pytest.raises(RuntimeError):
+        ds1.crop_by_geometry(small_geometry)
 
     # crop by custom crs
     # https://epsg.io/102033

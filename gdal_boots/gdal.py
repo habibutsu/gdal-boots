@@ -33,7 +33,7 @@ except ImportError:
 from osgeo import gdal, ogr, osr
 from osgeo.osr import SpatialReference
 
-from .geometry import GeometryBuilder
+from .geometry import GeometryBuilder, transform
 from .geometry import transform as geometry_transform
 from .options import DriverOptions
 
@@ -583,7 +583,7 @@ class RasterDataset:
         gdal.Unlink(mem_id)
         return data
 
-    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any]]=None) -> VectorDataset:
+    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> VectorDataset:
         '''
 
         drv = ogr.GetDriverByName("Memory")
@@ -769,6 +769,10 @@ class RasterDataset:
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
+
+        if epsg != self.geoinfo.epsg:
+            geometry = transform(geometry, epsg, self.geoinfo.epsg)
+            epsg = self.geoinfo.epsg
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
