@@ -9,9 +9,6 @@ from enum import Enum
 from numbers import Number
 from typing import List, Tuple, Union, Callable, Any, Iterable
 from uuid import uuid4
-from functools import singledispatchmethod
-
-from osgeo import ogr
 
 import affine
 import numpy as np
@@ -33,7 +30,7 @@ except ImportError:
 from osgeo import gdal, ogr, osr
 from osgeo.osr import SpatialReference
 
-from .geometry import GeometryBuilder
+from .geometry import GeometryBuilder, transform, transform_by_srs, srs_from_epsg
 from .geometry import transform as geometry_transform
 from .options import DriverOptions
 
@@ -100,6 +97,14 @@ class imdict(dict):
     popitem = _immutable
 
 
+def epsg_from_srs(srs: SpatialReference) -> int:
+    # value = int(srs.GetAttrValue('AUTHORITY', 1))
+    value = srs.GetAuthorityCode(None)
+    if not value:
+        raise ValueError("Could not get epsg code")
+    return int(value)
+
+
 @dataclass
 class GeoInfo:
     epsg: int
@@ -115,14 +120,16 @@ class GeoInfo:
             srs.ImportFromProj4(self.proj4)
         return srs
 
+    def epsg_from_srs(self, srs: SpatialReference):
+        self.epsg = epsg_from_srs(srs)
+
+    def fill_epsg_from_srs(self):
+        self.epsg_from_srs(self.srs)
+
     def epsg_from_wkt(self, wkt):
         srs = SpatialReference()
         srs.ImportFromWkt(wkt)
-        # int(srs.GetAttrValue('AUTHORITY',1))
-        value = srs.GetAuthorityCode(None)
-        if not value:
-            raise ValueError("Could not get epsg code")
-        self.epsg = int(value)
+        self.epsg_from_srs(srs)
 
     @classmethod
     def from_dataset(cls, ds):
@@ -583,7 +590,7 @@ class RasterDataset:
         gdal.Unlink(mem_id)
         return data
 
-    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any]]=None) -> VectorDataset:
+    def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> VectorDataset:
         '''
 
         drv = ogr.GetDriverByName("Memory")
@@ -630,6 +637,7 @@ class RasterDataset:
         self,
         bbox: Tuple[float, float, float, float] = None,
         bbox_epsg: int = 4326,
+        bbox_srs: SpatialReference = None,
         resampling: Resampling = Resampling.near,
         extra_ds: List[RasterDataset] = None,
         resolution: Tuple[int, int] = None,
@@ -657,13 +665,15 @@ class RasterDataset:
         if not out_srs:
             out_srs = self.geoinfo.srs
 
+        bbox_srs = bbox_srs or srs_from_epsg(bbox_epsg)
+
         ds = gdal.Warp('',
                        [other.ds for other in extra_ds] + [self.ds],
                        dstSRS=out_srs,
                        xRes=x_res,
                        yRes=y_res,
                        outputBounds=bbox,  # (minX, minY, maxX, maxY)
-                       outputBoundsSRS=None if bbox is None else 'epsg:{}'.format(bbox_epsg),
+                       outputBoundsSRS=None if bbox is None else bbox_srs,
                        resampleAlg=resampling.value,
                        format="MEM",
                        srcNodata=self.nodata[0] if self.nodata[0] else nodata,
@@ -770,19 +780,22 @@ class RasterDataset:
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
 
+        geom_srs = srs_from_epsg(epsg)
+        ds_srs = self.geoinfo.srs
+        if not geom_srs.IsSame(ds_srs):
+            geometry = transform_by_srs(geometry, geom_srs, ds_srs)
+
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
-            bbox_epsg=epsg,
+            bbox_srs=ds_srs,
             extra_ds=extra_ds,
             resolution=resolution,
             out_epsg=out_epsg,
             out_proj4=out_proj4,
             resampling=resampling
         )
-        vect_ds = VectorDataset.open(geometry.ExportToJson())
-        if epsg != 4326:
-            vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(epsg)
+        vect_ds = VectorDataset.open(geometry.ExportToJson(), srs=ds_srs)
 
         mask_ds = RasterDataset.create(warped_ds.shape, warped_ds.dtype, geoinfo=warped_ds.geoinfo)
         vect_ds.rasterize(mask_ds)
@@ -960,8 +973,12 @@ class VectorDataset:
         return f'<{type(self).__name__} {hex(id(self))} {layers_str}>'
 
     @classmethod
-    def open(cls, filename: str, open_flag=gdal.GA_ReadOnly):
+    def open(cls, filename: str, open_flag=gdal.GA_ReadOnly, srs: SpatialReference = None):
         ds = gdal.OpenEx(filename, gdal.OF_VECTOR | open_flag)
+        if srs:
+            proj4_srs = srs.ExportToProj4()
+            for idx in range(ds.GetLayerCount()):
+                ds.GetLayer(idx).GetSpatialRef().ImportFromProj4(proj4_srs)
         return cls(ds)
 
     @classmethod
