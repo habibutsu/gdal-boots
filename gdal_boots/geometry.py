@@ -140,6 +140,12 @@ def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision: int = No
     return GeometryGeoJson(precision=precision).convert(geometry)
 
 
+def srs_from_epsg(epsg: int) -> SpatialReference:
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(epsg)
+    return srs
+
+
 def transform_by_srs(geometry: ogr.Geometry, from_srs: SpatialReference, to_srs: SpatialReference) -> ogr.Geometry:
     from_srs = from_srs.Clone()
     from_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
@@ -154,12 +160,8 @@ def transform_by_srs(geometry: ogr.Geometry, from_srs: SpatialReference, to_srs:
 
 
 def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
-    from_srs = osr.SpatialReference()
-    from_srs.ImportFromEPSG(from_epsg)
-
-    to_srs = osr.SpatialReference()
-    to_srs.ImportFromEPSG(to_epsg)
-
+    from_srs = srs_from_epsg(from_epsg)
+    to_srs = srs_from_epsg(to_epsg)
     return transform_by_srs(geometry, from_srs=from_srs, to_srs=to_srs)
 
 
