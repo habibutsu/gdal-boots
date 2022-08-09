@@ -1,6 +1,7 @@
 from typing import List, Sequence, Union
 
 from osgeo import gdal, ogr, osr
+from osgeo.osr import SpatialReference
 
 
 class GeometryBuilder:
@@ -139,19 +140,27 @@ def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision: int = No
     return GeometryGeoJson(precision=precision).convert(geometry)
 
 
-def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
-    from_src = osr.SpatialReference()
-    from_src.ImportFromEPSG(from_epsg)
-    from_src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+def transform_by_srs(geometry: ogr.Geometry, from_srs: SpatialReference, to_srs: SpatialReference) -> ogr.Geometry:
+    from_srs = from_srs.Clone()
+    from_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
-    to_crs = osr.SpatialReference()
-    to_crs.ImportFromEPSG(to_epsg)
-    to_crs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    to_srs = to_srs.Clone()
+    to_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
-    transformation = osr.CoordinateTransformation(from_src, to_crs)
+    transformation = osr.CoordinateTransformation(from_srs, to_srs)
     result_geometry = geometry.Clone()
     result_geometry.Transform(transformation)
     return result_geometry
+
+
+def transform(geometry: ogr.Geometry, from_epsg: int, to_epsg: int) -> ogr.Geometry:
+    from_srs = osr.SpatialReference()
+    from_srs.ImportFromEPSG(from_epsg)
+
+    to_srs = osr.SpatialReference()
+    to_srs.ImportFromEPSG(to_epsg)
+
+    return transform_by_srs(geometry, from_srs=from_srs, to_srs=to_srs)
 
 
 def transform_geojson(

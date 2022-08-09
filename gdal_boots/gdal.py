@@ -100,6 +100,14 @@ class imdict(dict):
     popitem = _immutable
 
 
+def epsg_from_srs(srs: SpatialReference) -> int:
+    # value = int(srs.GetAttrValue('AUTHORITY', 1))
+    value = srs.GetAuthorityCode(None)
+    if not value:
+        raise ValueError("Could not get epsg code")
+    return int(value)
+
+
 @dataclass
 class GeoInfo:
     epsg: int
@@ -115,24 +123,16 @@ class GeoInfo:
             srs.ImportFromProj4(self.proj4)
         return srs
 
-    @property
-    def fill_get_epsg(self) -> int:
-        if not self.epsg:
-            self.epsg = self.epsg_from_srs(self.srs)
-        return self.epsg
+    def epsg_from_srs(self, srs: SpatialReference):
+        self.epsg = epsg_from_srs(srs)
 
-    @staticmethod
-    def epsg_from_srs(srs: SpatialReference) -> int:
-        # value = int(srs.GetAttrValue('AUTHORITY', 1))
-        value = srs.GetAuthorityCode(None)
-        if not value:
-            raise ValueError("Could not get epsg code")
-        return int(value)
+    def fill_epsg_from_srs(self):
+        self.epsg_from_srs(self.srs)
 
     def epsg_from_wkt(self, wkt):
         srs = SpatialReference()
         srs.ImportFromWkt(wkt)
-        self.epsg = self.epsg_from_srs(srs)
+        self.epsg_from_srs(srs)
 
     @classmethod
     def from_dataset(cls, ds):
@@ -780,10 +780,9 @@ class RasterDataset:
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
 
-        raster_epsg = self.geoinfo.fill_get_epsg
-        if epsg != raster_epsg:
-            geometry = transform(geometry, epsg, raster_epsg)
-            epsg = raster_epsg
+        if self.geoinfo.epsg and self.geoinfo.epsg != epsg:
+            geometry = transform(geometry, epsg, self.geoinfo.epsg)
+            epsg = self.geoinfo.epsg
 
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
