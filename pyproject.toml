@@ -1,0 +1,27 @@
+[tool.black]
+line-length = 120
+exclude = '''
+/(
+  # Copied from: https://github.com/psf/black/blob/master/pyproject.toml
+  | \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | settings\.py
+
+  # Specific to the project
+  | migrations
+  | static
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 120
