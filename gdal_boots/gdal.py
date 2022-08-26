@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import io
+import logging
 import math
 import os
-import logging
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import List, Tuple, Union, Callable, Any, Iterable
+from typing import Any, Callable, Iterable, List, Tuple, Union
 from uuid import uuid4
 
 import affine
@@ -18,7 +18,6 @@ try:
 except ImportError:
     from functools import lru_cache
 
-
     def cached_property(fn):
         @property
         @lru_cache(maxsize=None)
@@ -27,11 +26,13 @@ except ImportError:
 
         return wrapper
 
+
 from osgeo import gdal, ogr, osr
 from osgeo.osr import SpatialReference
 
-from .geometry import GeometryBuilder, transform, transform_by_srs, srs_from_epsg
+from .geometry import GeometryBuilder, srs_from_epsg
 from .geometry import transform as geometry_transform
+from .geometry import transform_by_srs
 from .options import DriverOptions
 
 try:
@@ -54,10 +55,7 @@ DTYPE_TO_GDAL = {
     int: gdal.GDT_Int32,
     float: gdal.GDT_Float64,
 }
-GDAL_TO_DTYPE = {
-    gdal_dtype: dtype
-    for dtype, gdal_dtype in DTYPE_TO_GDAL.items()
-}
+GDAL_TO_DTYPE = {gdal_dtype: dtype for dtype, gdal_dtype in DTYPE_TO_GDAL.items()}
 
 LOG_LEVELS = {
     gdal.CE_Debug: logger.debug,
@@ -66,6 +64,7 @@ LOG_LEVELS = {
     gdal.CE_Failure: logger.error,
     gdal.CE_Fatal: logger.critical,
 }
+
 
 def error_handler(err_level, err_no, err_msg):
     LOG_LEVELS[err_level]("error_no=%s, %s", err_no, err_msg)
@@ -86,7 +85,7 @@ class imdict(dict):
         return id(self)
 
     def _immutable(self, *args, **kws):
-        raise TypeError('object is immutable')
+        raise TypeError("object is immutable")
 
     __setitem__ = _immutable
     __delitem__ = _immutable
@@ -148,17 +147,10 @@ class GeoInfo:
             proj4 = srs.ExportToProj4()
 
         # epsg = int(srs.GetAttrValue('AUTHORITY', 1))
-        return cls(
-            epsg=epsg,
-            transform=affine.Affine.from_gdal(*ds.GetGeoTransform()),
-            proj4=proj4
-        )
+        return cls(epsg=epsg, transform=affine.Affine.from_gdal(*ds.GetGeoTransform()), proj4=proj4)
 
     def scale(self, *args):
-        return type(self)(
-            self.epsg,
-            self.transform * affine.Affine.scale(*args)
-        )
+        return type(self)(self.epsg, self.transform * affine.Affine.scale(*args))
 
     @property
     def projection_str(self):
@@ -170,31 +162,31 @@ class GeoInfo:
 
 
 class Resampling(Enum):
-    near = 'near'
-    bilinear = 'bilinear'
-    cubic = 'cubic'
+    near = "near"
+    bilinear = "bilinear"
+    cubic = "cubic"
     # cubic spline resampling.
-    cubicspline = 'cubicspline'
+    cubicspline = "cubicspline"
     # Lanczos windowed sinc resampling.
-    lanczos = 'lanczos'
+    lanczos = "lanczos"
     # average resampling, computes the weighted average of all non-NODATA contributing pixels.
-    average = 'average'
+    average = "average"
     # root mean square / quadratic mean of all non-NODATA contributing pixels (GDAL >= 3.3)
-    rms = 'rms'
+    rms = "rms"
     # mode resampling, selects the value which appears most often of all the sampled points.
-    mode = 'mode'
+    mode = "mode"
     # maximum resampling, selects the maximum value from all non-NODATA contributing pixels.
-    max = 'max'
+    max = "max"
     # minimum resampling, selects the minimum value from all non-NODATA contributing pixels.
-    min = 'min'
+    min = "min"
     # median resampling, selects the median value of all non-NODATA contributing pixels.
-    median = 'med'
+    median = "med"
     # first quartile resampling, selects the first quartile value of all non-NODATA contributing pixels.
-    q1 = 'q1'
+    q1 = "q1"
     # third quartile resampling, selects the third quartile value of all non-NODATA contributing pixels.
-    q3 = 'q3'
+    q3 = "q3"
     # compute the weighted sum of all non-NODATA contributing pixels (since GDAL 3.1)
-    sum = 'sum'
+    sum = "sum"
 
 
 class RasterDataset:
@@ -221,25 +213,19 @@ class RasterDataset:
     @property
     def meta(self) -> dict:
         meta = self.ds.GetMetadata()
-        return imdict({
-            k: json.loads(v[5:]) if v.startswith('json:') else v
-            for k, v in meta.items()
-        })
+        return imdict({k: json.loads(v[5:]) if v.startswith("json:") else v for k, v in meta.items()})
 
     @meta.setter
     def meta(self, value: dict) -> None:
         if value:
-            encoded_value = {
-                k: f"json:{json.dumps(v)}"
-                for k, v in value.items()
-            }
+            encoded_value = {k: f"json:{json.dumps(v)}" for k, v in value.items()}
             self.ds.SetMetadata(encoded_value)
 
     @property
     def shape(self) -> Union[Tuple[int, int], Tuple[int, int, int]]:
-        '''
-            numpy like shape
-        '''
+        """
+        numpy like shape
+        """
         ds = self.ds
         # it's tradeoff between convenience of using and explicitness
         if ds.RasterCount == 1:
@@ -262,10 +248,7 @@ class RasterDataset:
     @property
     def nodata(self):
         ds = self.ds
-        return [
-            ds.GetRasterBand(1).GetNoDataValue()
-            for i in range(1, self.ds.RasterCount + 1)
-        ]
+        return [ds.GetRasterBand(1).GetNoDataValue() for i in range(1, self.ds.RasterCount + 1)]
 
     @nodata.setter
     def nodata(self, value: Number):
@@ -293,16 +276,18 @@ class RasterDataset:
 
     def __repr__(self):
         if self.ds is None:
-            return f'<{type(self).__name__} {hex(id(self))} empty>'
-        return f'<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} {self.geoinfo.projection_str}>'
+            return f"<{type(self).__name__} {hex(id(self))} empty>"
+        return (
+            f"<{type(self).__name__} {hex(id(self))} {self.shape} {self.dtype.__name__} {self.geoinfo.projection_str}>"
+        )
 
     def bounds(self, epsg=None) -> np.array:
-        '''
-            return np.array([
-                [x_min, y_min],
-                [x_max, y_max]
-            ])
-        '''
+        """
+        return np.array([
+            [x_min, y_min],
+            [x_max, y_max]
+        ])
+        """
         # gcps = self.ds.GetGCPs()
         # [[gcp.GCPX, gcp.GCPY] for gcp in gcps]
 
@@ -345,22 +330,26 @@ class RasterDataset:
             (max_x, max_y),
         ] = self.bounds(epsg=epsg)
 
-        polygon = GeometryBuilder().create_polygon([[
-            (min_x, min_y),
-            (max_x, min_y),
-            (max_x, max_y),
-            (min_x, max_y),
-            (min_x, min_y),
-        ]])
+        polygon = GeometryBuilder().create_polygon(
+            [
+                [
+                    (min_x, min_y),
+                    (max_x, min_y),
+                    (max_x, max_y),
+                    (min_x, max_y),
+                    (min_x, min_y),
+                ]
+            ]
+        )
         polygon.SetCoordinateDimension(2)
         return polygon
 
     def set_bounds(self, coords: Iterable[Tuple[float, float]], epsg=None, resolution=None):
-        '''
-            coords - [(xmin, ymin), (xmax, ymax)]
-            epsg - projection
-            resolution - x_res, y_res
-        '''
+        """
+        coords - [(xmin, ymin), (xmax, ymax)]
+        epsg - projection
+        resolution - x_res, y_res
+        """
         x, y = np.array(coords).T
         y_size, x_size = self.shape[-2:]
         if resolution:
@@ -368,28 +357,22 @@ class RasterDataset:
         else:
             res_x = (x.max() - x.min()) / x_size
             res_y = (y.max() - y.min()) / y_size
-        self.geoinfo = GeoInfo(
-            epsg=epsg,
-            transform=affine.Affine(
-                res_x, 0.0, x.min(),
-                0.0, -res_y, y.max()
-            )
-        )
+        self.geoinfo = GeoInfo(epsg=epsg, transform=affine.Affine(res_x, 0.0, x.min(), 0.0, -res_y, y.max()))
 
     def __getitem__(self, slices: Tuple[slice, slice, slice]):
         # mem_arr = self.ds.GetVirtualMemArray()
         arr = self.ds.ReadAsArray()
         return arr.__getitem__(slices)
 
-    def __setitem__(
+    def __setitem__(  # noqa: C901
         self,
         selector: Union[
             int,
             slice,
             Tuple[Union[int, slice], Union[int, slice]],
-            Tuple[Union[int, slice], Union[int, slice], Union[int, slice]]
+            Tuple[Union[int, slice], Union[int, slice], Union[int, slice]],
         ],
-        value: np.array
+        value: np.array,
     ):
         ds = self.ds
         x_selector = None
@@ -406,7 +389,7 @@ class RasterDataset:
                     y_selector, x_selector = selector
             elif len(selector) == 3:
                 if len(shape) == 2:
-                    raise IndexError('too many indices for array')
+                    raise IndexError("too many indices for array")
                 bands_selector, y_selector, x_selector = selector
         else:
             bands_selector = selector
@@ -414,12 +397,7 @@ class RasterDataset:
         if isinstance(bands_selector, int):
             bands_range = [bands_selector]
         elif isinstance(bands_selector, slice):
-            bands_range = list(
-                range(
-                    bands_selector.start or 0,
-                    (bands_selector.stop or ds.RasterCount)
-                )
-            )
+            bands_range = list(range(bands_selector.start or 0, (bands_selector.stop or ds.RasterCount)))
         elif isinstance(bands_selector, (tuple, list)):
             bands_range = bands_selector
 
@@ -433,7 +411,7 @@ class RasterDataset:
             xstart = x_selector.start or 0
             xstop = x_selector.stop
         else:
-            raise NotImplementedError('not support indexing as {}'.format(x_selector))
+            raise NotImplementedError("not support indexing as {}".format(x_selector))
 
         xstop = xstop or ds.RasterXSize
         xsize = xstop - xstart
@@ -448,16 +426,13 @@ class RasterDataset:
             ystart = y_selector.start or 0
             ystop = y_selector.stop
         else:
-            raise NotImplementedError('not support indexing as {}'.format(y_selector))
+            raise NotImplementedError("not support indexing as {}".format(y_selector))
 
         ystop = ystop or ds.RasterYSize
         ysize = ystop - ystart
 
         if isinstance(value, Number):
-            img = np.full(
-                shape=(len(bands_range), ysize, xsize),
-                fill_value=value
-            )
+            img = np.full(shape=(len(bands_range), ysize, xsize), fill_value=value)
         else:
             img = value
 
@@ -465,7 +440,7 @@ class RasterDataset:
             img = np.expand_dims(img, axis=0)
 
         if len(bands_range) != img.shape[0]:
-            raise ValueError('could not broadcast input array')
+            raise ValueError("could not broadcast input array")
 
         for in_band_num, band_num in enumerate(bands_range):
             band = ds.GetRasterBand(band_num + 1)
@@ -515,19 +490,15 @@ class RasterDataset:
         if isinstance(dtype, np.dtype):
             dtype = dtype.type
 
-        driver = gdal.GetDriverByName('MEM')
-        ds = driver.Create('', width, height, bands, DTYPE_TO_GDAL[dtype])
+        driver = gdal.GetDriverByName("MEM")
+        ds = driver.Create("", width, height, bands, DTYPE_TO_GDAL[dtype])
         self = cls(ds)
         self.geoinfo = geoinfo
         return self
 
     def to_file(self, filename: str, options: DriverOptions) -> None:
         driver = options.driver
-        ds = driver.CreateCopy(
-            filename,
-            self.ds,
-            strict=0, options=options.encode()
-        )
+        ds = driver.CreateCopy(filename, self.ds, strict=0, options=options.encode())
         # ds = gdal.Translate(
         #     self.filename,
         #     self._ds,
@@ -538,12 +509,12 @@ class RasterDataset:
 
     @classmethod
     def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
-        mem_id = f'/vsimem/{uuid4()}'
+        mem_id = f"/vsimem/{uuid4()}"
         if ext:
-            mem_id = f'{mem_id}.{ext}'
+            mem_id = f"{mem_id}.{ext}"
 
-        f = gdal.VSIFOpenL(mem_id, 'wb')
-        for chunk in iter(lambda: stream.read(1024), b''):
+        f = gdal.VSIFOpenL(mem_id, "wb")
+        for chunk in iter(lambda: stream.read(1024), b""):
             gdal.VSIFWriteL(chunk, 1, len(chunk), f)
         gdal.VSIFCloseL(f)
 
@@ -558,9 +529,9 @@ class RasterDataset:
 
     @classmethod
     def from_bytes(cls, data: bytes, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
-        mem_id = f'/vsimem/{uuid4()}'
+        mem_id = f"/vsimem/{uuid4()}"
         if ext:
-            mem_id = f'{mem_id}.{ext}'
+            mem_id = f"{mem_id}.{ext}"
         gdal.FileFromMemBuffer(mem_id, data)
         ds = gdal.OpenEx(mem_id, open_flag)
         self = cls(ds)
@@ -569,18 +540,13 @@ class RasterDataset:
 
     def to_bytes(self, options: DriverOptions) -> bytes:
         if not self.ds:
-            raise ValueError('dataset was closed')
+            raise ValueError("dataset was closed")
 
         driver = options.driver
         ext = options.driver_extensions[0]
-        mem_id = f'/vsimem/{uuid4()}.{ext}'
-        driver.CreateCopy(
-            mem_id,
-            self.ds,
-            strict=0,
-            options=options.encode()
-        )
-        f = gdal.VSIFOpenL(mem_id, 'rb')
+        mem_id = f"/vsimem/{uuid4()}.{ext}"
+        driver.CreateCopy(mem_id, self.ds, strict=0, options=options.encode())
+        f = gdal.VSIFOpenL(mem_id, "rb")
         gdal.VSIFSeekL(f, 0, os.SEEK_END)
         size = gdal.VSIFTellL(f)
         gdal.VSIFSeekL(f, 0, 0)
@@ -591,14 +557,14 @@ class RasterDataset:
         return data
 
     def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> VectorDataset:
-        '''
+        """
 
         drv = ogr.GetDriverByName("Memory")
         feature_ds = drv.CreateDataSource("memory_name")
 
         https://gis.stackexchange.com/questions/328358/gdal-warp-memory-datasource-as-cutline
 
-        '''
+        """
         vds = VectorDataset.create(self.geoinfo.epsg)
         band = self.ds.GetRasterBand(1)
         gdal.Polygonize(band, band, vds.layers.first().layer, field_id, [], callback=callback)
@@ -614,22 +580,22 @@ class RasterDataset:
         # driver = ogr.GetDriverByName('Memory')
         # ds = driver.CreateDataSource('memory')
 
-        driver = ogr.GetDriverByName('GPKG')
-        mem_id = f'/vsimem/{uuid4()}.gpkg'
+        driver = ogr.GetDriverByName("GPKG")
+        mem_id = f"/vsimem/{uuid4()}.gpkg"
         ds = driver.CreateDataSource(mem_id)
 
-        layer = ds.CreateLayer('geometry', srs=self.geoinfo.srs)
+        layer = ds.CreateLayer("geometry", srs=self.geoinfo.srs)
 
         # field = ogr.FieldDefn('field', ogr.OFTInteger)
         # layer.CreateField(field)
 
         gdal.Polygonize(band, None, layer, -1, [], callback=None)
 
-        ds_geom = gdal.VectorTranslate('', mem_id, format='Memory')
+        ds_geom = gdal.VectorTranslate("", mem_id, format="Memory")
         # gdal.VectorTranslate('test.gpkg', ds_geom, format='GPKG')
         ds.Destroy()
 
-        gdal.VectorTranslate('test.gpkg', ds, format='GPKG')
+        gdal.VectorTranslate("test.gpkg", ds, format="GPKG")
 
         return VectorDataset(ds_geom)
 
@@ -644,7 +610,7 @@ class RasterDataset:
         out_epsg: int = None,
         out_proj4: str = None,
         nodata=None,
-        out_nodata=None
+        out_nodata=None,
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
@@ -667,18 +633,19 @@ class RasterDataset:
 
         bbox_srs = bbox_srs or srs_from_epsg(bbox_epsg)
 
-        ds = gdal.Warp('',
-                       [other.ds for other in extra_ds] + [self.ds],
-                       dstSRS=out_srs,
-                       xRes=x_res,
-                       yRes=y_res,
-                       outputBounds=bbox,  # (minX, minY, maxX, maxY)
-                       outputBoundsSRS=None if bbox is None else bbox_srs,
-                       resampleAlg=resampling.value,
-                       format="MEM",
-                       srcNodata=self.nodata[0] if self.nodata[0] else nodata,
-                       dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
-                       )
+        ds = gdal.Warp(
+            "",
+            [other.ds for other in extra_ds] + [self.ds],
+            dstSRS=out_srs,
+            xRes=x_res,
+            yRes=y_res,
+            outputBounds=bbox,  # (minX, minY, maxX, maxY)
+            outputBoundsSRS=None if bbox is None else bbox_srs,
+            resampleAlg=resampling.value,
+            format="MEM",
+            srcNodata=self.nodata[0] if self.nodata[0] else nodata,
+            dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
+        )
         return type(self)(ds)
 
     def fast_warp_as_array(
@@ -692,13 +659,14 @@ class RasterDataset:
         bbox: x_min, y_min, x_max, y_max
         """
         if not (len(bbox) == 4 and bbox[0] < bbox[2] and bbox[1] < bbox[3]):
-            raise ValueError('input bbox should be in format: [x_min, y_min, x_max, y_max]')
+            raise ValueError("input bbox should be in format: [x_min, y_min, x_max, y_max]")
 
         bounds = self.bounds()
         bbox = np.array(bbox).reshape(2, 2)
         if not (np.all(bbox[0] > bounds[0]) and np.all(bbox[1] < bounds[1])):
-            raise ValueError('input bbox {} should be in bounds of raster {}'.format(
-                bbox.reshape(-1), bounds.reshape(-1)))
+            raise ValueError(
+                "input bbox {} should be in bounds of raster {}".format(bbox.reshape(-1), bounds.reshape(-1))
+            )
 
         if self._img is None:
             self._img = self.ds.GetVirtualMemArray()
@@ -711,9 +679,9 @@ class RasterDataset:
         ds_resolution = self.resolution
 
         # snap to corners
-        _bbox = (bbox / ds_resolution)
+        _bbox = bbox / ds_resolution
         _bbox = np.array([np.floor(_bbox[0]), np.ceil(_bbox[1])])
-        _bbox = (_bbox * ds_resolution)
+        _bbox = _bbox * ds_resolution
 
         warp_xy = ((_bbox - bounds[0]) / ds_resolution).astype(np.uint)
 
@@ -725,7 +693,7 @@ class RasterDataset:
         warp_img = img[slice(*warp_xy[:, 1]), slice(*warp_xy[:, 0])]
 
         if resolution is not None:
-            raise NotImplementedError('not implemented yet')
+            raise NotImplementedError("not implemented yet")
             # k = ds_resolution / resolution
             # warp_img = np.repeat(np.repeat(warp_img, k[0], axis=0), k[1], axis=1)
             # # so recalulate bbox and crop img to it
@@ -744,10 +712,9 @@ class RasterDataset:
             GeoInfo(
                 epsg=epsg,
                 transform=affine.Affine(
-                    ds_resolution[0], 0.0, _bbox[:, 0].min(),
-                    0.0, -ds_resolution[1], _bbox[:, 1].max()
-                )
-            )
+                    ds_resolution[0], 0.0, _bbox[:, 0].min(), 0.0, -ds_resolution[1], _bbox[:, 1].max()
+                ),
+            ),
         )
 
     def fast_warp(
@@ -757,11 +724,7 @@ class RasterDataset:
     ) -> RasterDataset:
         warp_img, geoinfo = self.fast_warp_as_array(bbox, resolution)
 
-        ds_warp = RasterDataset.create(
-            shape=warp_img.shape,
-            geoinfo=geoinfo,
-            dtype=warp_img.dtype
-        )
+        ds_warp = RasterDataset.create(shape=warp_img.shape, geoinfo=geoinfo, dtype=warp_img.dtype)
         ds_warp[:] = warp_img
         return ds_warp
 
@@ -793,7 +756,7 @@ class RasterDataset:
             resolution=resolution,
             out_epsg=out_epsg,
             out_proj4=out_proj4,
-            resampling=resampling
+            resampling=resampling,
         )
         vect_ds = VectorDataset.open(geometry.ExportToJson(), srs=ds_srs)
 
@@ -830,8 +793,8 @@ class RasterDataset:
         for point in points:
             if not isinstance(point, ogr.Geometry):
                 point = geom_builder(point)
-            if point.GetGeometryType() == 'POINT':
-                raise ValueError(f'type of geometry is not supported: {point.GetGeometryType()}')
+            if point.GetGeometryType() == "POINT":
+                raise ValueError(f"type of geometry is not supported: {point.GetGeometryType()}")
             mx, my = point.GetX(), point.GetY()  # coord in map units
 
             # Convert from map to pixel coordinates
@@ -870,7 +833,6 @@ class Feature:
 
 
 class Features:
-
     def __init__(self, layer):
         self.layer = layer
 
@@ -886,7 +848,6 @@ class Features:
 
 
 class Layer:
-
     def __init__(self, layer: ogr.Layer):
         self.layer = layer
 
@@ -916,15 +877,14 @@ class Layer:
             bands=bands,
             layer=self.layer,
             burn_values=burn_values,
-            options=['ALL_TOUCHED={}'.format('TRUE' if all_touched else 'FALSE')]
+            options=["ALL_TOUCHED={}".format("TRUE" if all_touched else "FALSE")],
         )
 
     def __repr__(self):
-        return f'<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>'
+        return f"<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>"
 
 
 class Layers:
-
     def __init__(self, ds):
         self.ds = ds
 
@@ -944,6 +904,7 @@ class Layers:
         def _iterator():
             for i in range(len(self)):
                 yield Layer(self.ds.GetLayerByIndex(i))
+
         return iter(_iterator())
 
     def __len__(self):
@@ -965,12 +926,9 @@ class VectorDataset:
 
     def __repr__(self):
         if self.ds is None:
-            return f'<{type(self).__name__} {hex(id(self))} empty>'
-        layers_str = ",".join([
-            layer.name
-            for layer in self.layers
-        ])
-        return f'<{type(self).__name__} {hex(id(self))} {layers_str}>'
+            return f"<{type(self).__name__} {hex(id(self))} empty>"
+        layers_str = ",".join([layer.name for layer in self.layers])
+        return f"<{type(self).__name__} {hex(id(self))} {layers_str}>"
 
     @classmethod
     def open(cls, filename: str, open_flag=gdal.GA_ReadOnly, srs: SpatialReference = None):
@@ -983,8 +941,8 @@ class VectorDataset:
 
     @classmethod
     def create(cls, epsg: int = None):
-        mem_id = f'/vsimem/{uuid4()}'
-        drv = ogr.GetDriverByName('MEMORY')
+        mem_id = f"/vsimem/{uuid4()}"
+        drv = ogr.GetDriverByName("MEMORY")
         ds = drv.CreateDataSource(mem_id)
 
         # geoinfo: GeoInfo = None
@@ -992,7 +950,7 @@ class VectorDataset:
         if epsg:
             srs = SpatialReference()
             srs.ImportFromEPSG(epsg)
-        layer = ds.CreateLayer('geometry', srs=srs)
+        ds.CreateLayer("geometry", srs=srs)
         # gdal.FileFromMemBuffer(mem_id, data)
         # ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
         self = cls(ds)
@@ -1024,15 +982,15 @@ class VectorDataset:
             driver.DeleteDataSource(filename)
         out_ds = driver.CreateDataSource(filename)
 
-        out_ds.CopyLayer(self.ds.GetLayer(), 'geometry', ['OVERWRITE=YES'])
+        out_ds.CopyLayer(self.ds.GetLayer(), "geometry", ["OVERWRITE=YES"])
         out_ds.FlushCache()
         out_ds.Destroy()
 
     @classmethod
     def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
-        mem_id = f'/vsimem/{uuid4()}'
+        mem_id = f"/vsimem/{uuid4()}"
         if ext:
-            mem_id = f'{mem_id}.{ext}'
+            mem_id = f"{mem_id}.{ext}"
         gdal.FileFromMemBuffer(mem_id, data)
         ds = gdal.OpenEx(mem_id, open_flag)
         self = cls(ds)

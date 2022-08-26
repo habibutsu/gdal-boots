@@ -15,7 +15,7 @@ class GeometryBuilder:
         if isinstance(geometry, str):
             return ogr.CreateGeometryFromJson(geometry)
 
-        geometry_type_lower = geometry['type'].lower()
+        geometry_type_lower = geometry["type"].lower()
         try:
             handler = getattr(self, f"create_{geometry_type_lower}")
         except AttributeError:
@@ -82,14 +82,8 @@ class GeometryGeoJson:
         return handler(geometry)
 
     def convert_polygon(self, geometry: ogr.Geometry) -> (str, dict):
-        coordinates = [
-            self._get_points(geometry.GetGeometryRef(i))
-            for i in range(geometry.GetGeometryCount())
-        ]
-        return {
-            "type": "Polygon",
-            "coordinates": coordinates
-        }
+        coordinates = [self._get_points(geometry.GetGeometryRef(i)) for i in range(geometry.GetGeometryCount())]
+        return {"type": "Polygon", "coordinates": coordinates}
 
     def convert_multipolygon(self, geometry: ogr.Geometry) -> (str, dict):
         coordinates = []
@@ -97,40 +91,25 @@ class GeometryGeoJson:
             sub_geom = geometry.GetGeometryRef(i)
             sub_coordinates = self.convert_polygon(sub_geom)["coordinates"]
             coordinates.append(sub_coordinates)
-        return {
-            "type": "MultiPolygon",
-            "coordinates": coordinates
-        }
+        return {"type": "MultiPolygon", "coordinates": coordinates}
 
     def convert_point(self, geometry: ogr.Geometry) -> (str, dict):
-        return {
-            "type": "Point",
-            "coordinates": self._get_points(geometry)[0]
-        }
+        return {"type": "Point", "coordinates": self._get_points(geometry)[0]}
 
     def convert_geometrycollection(self, geometry: ogr.Geometry) -> (str, dict):
         geometries = []
         for i in range(geometry.GetGeometryCount()):
             geometries.append(self.convert(geometry.GetGeometryRef(i)))
-        return {
-            "type": "GeometryCollection",
-            "geometries": geometries
-        }
+        return {"type": "GeometryCollection", "geometries": geometries}
 
     def convert_multilinestring(self, geometry: ogr.Geometry) -> (str, dict):
         lines = []
         for i in range(geometry.GetGeometryCount()):
             lines.append(self._get_points(geometry.GetGeometryRef(i)))
-        return {
-            "type": "MultiLineString",
-            "coordinates": lines
-        }
+        return {"type": "MultiLineString", "coordinates": lines}
 
     def _get_points(self, geometry: ogr.Geometry) -> list:
-        return [
-            [round(c, self.precision) for c in p]
-            for p in geometry.GetPoints()
-        ]
+        return [[round(c, self.precision) for c in p] for p in geometry.GetPoints()]
 
 
 def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision: int = None) -> dict:
@@ -191,14 +170,11 @@ def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
 
     if valid_geometry.GetGeometryName() == "GEOMETRYCOLLECTION":
         geometry_type = geometry.GetGeometryName()
-        union_geometry = ogr.Geometry(
-            ogr.wkbMultiPolygon if geometry_type == "MULTIPOLYGON"
-            else ogr.wkbPolygon
-        )
+        union_geometry = ogr.Geometry(ogr.wkbMultiPolygon if geometry_type == "MULTIPOLYGON" else ogr.wkbPolygon)
         for i in range(valid_geometry.GetGeometryCount()):
             sub_geometry = valid_geometry.GetGeometryRef(i)
 
-            if sub_geometry.GetGeometryName() not in ['MULTIPOLYGON', 'POLYGON']:
+            if sub_geometry.GetGeometryName() not in ["MULTIPOLYGON", "POLYGON"]:
                 continue
             union_geometry = union_geometry.Union(sub_geometry)
 
@@ -206,10 +182,7 @@ def make_valid(geometry: ogr.Geometry) -> ogr.Geometry:
         valid_geometry = union_geometry
 
         # cast to input type if possible
-        if (
-            geometry_type == "MULTIPOLYGON" and
-            valid_geometry.GetGeometryName() == "POLYGON"
-        ):
+        if geometry_type == "MULTIPOLYGON" and valid_geometry.GetGeometryName() == "POLYGON":
             _geometry = ogr.Geometry(ogr.wkbMultiPolygon)
             _geometry.AddGeometry(valid_geometry)
             valid_geometry = _geometry

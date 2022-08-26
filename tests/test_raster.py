@@ -12,7 +12,7 @@ import tqdm
 from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
-from gdal_boots.gdal import GeoInfo, RasterDataset, Resampling
+from gdal_boots.gdal import GeoInfo, RasterDataset
 from gdal_boots.geometry import GeometryBuilder, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
 from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
@@ -28,15 +28,15 @@ def test_open_file(lena_512_png):
 
         png_data = ds.to_bytes(PNG(zlevel=9))
 
-        with tempfile.NamedTemporaryFile(suffix='.png') as fd:
-            with open(fd.name, 'wb') as fd:
+        with tempfile.NamedTemporaryFile(suffix=".png") as fd:
+            with open(fd.name, "wb") as fd:
                 fd.write(png_data)
 
         assert len(png_data) == 476208
 
 
 def test_open_memory(lena_512_png):
-    with open(lena_512_png, 'rb') as fd:
+    with open(lena_512_png, "rb") as fd:
         data = fd.read()
 
     with RasterDataset.from_bytes(data) as ds:
@@ -61,33 +61,30 @@ def test_create():
     img[100:200, 100:200] = 192
     img[800:900, 800:900] = 250
 
-    geoinfo = GeoInfo(
-        epsg=32631,
-        transform=affine.Affine(10.0, 0.0, 600000.0, 0.0, -10.0, 5700000.0)
-    )
+    geoinfo = GeoInfo(epsg=32631, transform=affine.Affine(10.0, 0.0, 600000.0, 0.0, -10.0, 5700000.0))
 
     with RasterDataset.create(shape=img.shape, dtype=img.dtype.type, geoinfo=geoinfo) as ds:
         ds[:, :] = img
 
-        with tempfile.NamedTemporaryFile(suffix='.png') as fd:
+        with tempfile.NamedTemporaryFile(suffix=".png") as fd:
             ds.to_file(fd.name, PNG())
             data = fd.read()
             assert len(data) == 1190120
-            assert data[:4] == b'\x89PNG'
+            assert data[:4] == b"\x89PNG"
 
-        with tempfile.NamedTemporaryFile(suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(suffix=".tiff") as fd:
             ds.to_file(fd.name, GTiff())
             data = fd.read()
             assert len(data) == 1206004
-            assert data[:3] == b'II*'
+            assert data[:3] == b"II*"
 
             assert len(ds.to_bytes(GTiff())) == len(data)
 
-        with tempfile.NamedTemporaryFile(suffix='.jp2') as fd:
+        with tempfile.NamedTemporaryFile(suffix=".jp2") as fd:
             ds.to_file(fd.name, JP2OpenJPEG())
             data = fd.read()
             assert len(data) == 303410
-            assert data[:6] == b'\x00\x00\x00\x0cjP'
+            assert data[:6] == b"\x00\x00\x00\x0cjP"
 
             assert len(ds.to_bytes(JP2OpenJPEG())) == len(data)
 
@@ -97,13 +94,11 @@ def test_vectorize():
     img[10:200, 10:200] = 192
     img[800:900, 800:900] = 250
 
-    geoinfo = GeoInfo(
-        epsg=32631,
-        transform=affine.Affine(10.0, 0.0, 600000.0, 0.0, -10.0, 5700000.0)
-    )
+    geoinfo = GeoInfo(epsg=32631, transform=affine.Affine(10.0, 0.0, 600000.0, 0.0, -10.0, 5700000.0))
+
+    from typing import Any, Callable
 
     import tqdm
-    from typing import Callable, Any
 
     with tqdm.tqdm(total=100) as pbar:
         tqdm_progress: Callable[[float, str, Any], None] = lambda n, msg, _: pbar.update(int(round(n * 100 - pbar.n)))
@@ -113,7 +108,7 @@ def test_vectorize():
             # v_ds = ds.to_vector(callback=gdal.TermProgress)
             v_ds = ds.to_vector(callback=tqdm_progress)
             assert v_ds
-            with tempfile.NamedTemporaryFile(suffix='.gpkg') as fd:
+            with tempfile.NamedTemporaryFile(suffix=".gpkg") as fd:
                 v_ds.to_file(fd.name, GPKG())
 
 
@@ -121,15 +116,10 @@ def test_memory():
     import json
 
     from osgeo import gdal, ogr
+
     gdal.UseExceptions()
 
-    geojson = json.dumps({
-        "type": "Point",
-        "coordinates": [
-            27.773437499999996,
-            53.74871079689897
-        ]
-    })
+    geojson = json.dumps({"type": "Point", "coordinates": [27.773437499999996, 53.74871079689897]})
     srcdb = gdal.OpenEx(geojson, gdal.OF_VECTOR | gdal.OF_VERBOSE_ERROR)
     # # srcdb = ogr.Open(geojson)
     # print('type', srcdb, type(srcdb))
@@ -137,37 +127,37 @@ def test_memory():
     # return
 
     # create an output datasource in memory
-    outdriver = ogr.GetDriverByName('MEMORY')
-    source = outdriver.CreateDataSource('memData')
+    outdriver = ogr.GetDriverByName("MEMORY")
+    source = outdriver.CreateDataSource("memData")
 
     # open the memory datasource with write access
-    tmp = outdriver.Open('memData', 1)
+    outdriver.Open("memData", 1)
 
     # copy a layer to memory
-    pipes_mem = source.CopyLayer(srcdb.GetLayer(), 'pipes', ['OVERWRITE=YES'])
+    source.CopyLayer(srcdb.GetLayer(), "pipes", ["OVERWRITE=YES"])
 
     # the new layer can be directly accessed via the handle pipes_mem or as source.GetLayer('pipes'):
-    layer = source.GetLayer('pipes')
+    layer = source.GetLayer("pipes")
     for feature in layer:
-        feature.SetField('SOMETHING', 1)
+        feature.SetField("SOMETHING", 1)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        gdal.VectorTranslate(f'{tmp_dir}/test.gpkg', srcdb, format='GPKG')
+        gdal.VectorTranslate(f"{tmp_dir}/test.gpkg", srcdb, format="GPKG")
 
 
 @pytest.mark.skipif(
-    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    not os.path.exists("tests/fixtures/extra/B04.tif"),
     reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
 )
 def test_warp(minsk_polygon):
     bbox = shapely.geometry.shape(minsk_polygon).bounds
 
-    with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
+    with RasterDataset.open("tests/fixtures/extra/B04.tif") as ds:
         warped_ds = ds.warp(bbox, resolution=(10, 10))
 
         assert (warped_ds.geoinfo.transform.a, -warped_ds.geoinfo.transform.e) == (10, 10)
 
-        with tempfile.NamedTemporaryFile(suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(suffix=".tiff") as fd:
             warped_ds.to_file(fd.name, GTiff())
 
         warped_ds_r100 = ds.warp(bbox, resolution=(100, 100))
@@ -177,11 +167,11 @@ def test_warp(minsk_polygon):
 
 
 @pytest.mark.skipif(
-    not os.path.exists('tests/fixtures/extra/'),
+    not os.path.exists("tests/fixtures/extra/"),
     reason='extra folder "tests/fixtures/extra/" does not exist',
 )
 def test_fast_warp():
-    with open('tests/fixtures/35UNV_field_small.geojson') as fd:
+    with open("tests/fixtures/35UNV_field_small.geojson") as fd:
         test_field = json.load(fd)
         geometry_4326 = GeometryBuilder().create(test_field)
 
@@ -190,46 +180,40 @@ def test_fast_warp():
         bbox = utm_geometry.GetEnvelope()
         return np.array(bbox).reshape(2, 2).T.reshape(-1)
 
-    with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
+    with RasterDataset.open("tests/fixtures/extra/B02_10m.jp2") as ds:
         bbox = _get_bbox(ds.geoinfo.epsg)
 
-        with tempfile.NamedTemporaryFile(prefix='10m_', suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(prefix="10m_", suffix=".tiff") as fd:
             ds_warp = ds.fast_warp(bbox)
             ds_warp.to_file(fd.name, GTiff())
 
             assert ds_warp.shape == (8, 9)
-            assert np.all(
-                ds_warp.bounds() == np.array([[509040., 5946040.], [509130., 5946120.]])
-            )
+            assert np.all(ds_warp.bounds() == np.array([[509040.0, 5946040.0], [509130.0, 5946120.0]]))
             assert ds_warp.dtype == ds.dtype
 
             img_warp, geoinfo = ds.fast_warp_as_array(bbox)
 
             assert np.all(img_warp == ds_warp[:])
 
-    with RasterDataset.open('tests/fixtures/extra/B05_20m.jp2') as ds:
+    with RasterDataset.open("tests/fixtures/extra/B05_20m.jp2") as ds:
         bbox = _get_bbox(ds.geoinfo.epsg)
 
-        with tempfile.NamedTemporaryFile(prefix='20m_', suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(prefix="20m_", suffix=".tiff") as fd:
             ds_warp = ds.fast_warp(bbox)
             ds_warp.to_file(fd.name, GTiff())
 
             assert ds_warp
-            assert np.all(
-                ds_warp.bounds() == np.array([[509040., 5946040.], [509140., 5946120.]])
-            )
+            assert np.all(ds_warp.bounds() == np.array([[509040.0, 5946040.0], [509140.0, 5946120.0]]))
 
-    with RasterDataset.open('tests/fixtures/extra/B09_60m.jp2') as ds:
+    with RasterDataset.open("tests/fixtures/extra/B09_60m.jp2") as ds:
         bbox = _get_bbox(ds.geoinfo.epsg)
 
-        with tempfile.NamedTemporaryFile(prefix='60m_', suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(prefix="60m_", suffix=".tiff") as fd:
             ds_warp = ds.fast_warp(bbox)
             ds_warp.to_file(fd.name, GTiff())
 
             assert ds_warp.shape == (2, 2)
-            assert np.all(
-                ds_warp.bounds() == np.array([[509040., 5946000.], [509160., 5946120.]])
-            )
+            assert np.all(ds_warp.bounds() == np.array([[509040.0, 5946000.0], [509160.0, 5946120.0]]))
 
         ds_10m = ds.warp(
             ds.bounds().reshape(-1),
@@ -237,30 +221,30 @@ def test_fast_warp():
             resolution=(10, 10),
         )
 
-        with tempfile.NamedTemporaryFile(prefix='60m_', suffix='.tiff') as fd:
+        with tempfile.NamedTemporaryFile(prefix="60m_", suffix=".tiff") as fd:
             ds_warp = ds_10m.fast_warp(bbox)
             ds_warp.to_file(fd.name, GTiff())
 
             assert ds_warp.shape == (8, 9)
-            assert np.all(
-                ds_warp.bounds() == np.array([[509040., 5946040.], [509130., 5946120.]])
-            )
+            assert np.all(ds_warp.bounds() == np.array([[509040.0, 5946040.0], [509130.0, 5946120.0]]))
 
 
 @pytest.mark.skipif(
-    not os.path.exists('tests/fixtures/extra/B04.tif'),
+    not os.path.exists("tests/fixtures/extra/B04.tif"),
     reason='extra file "tests/fixtures/extra/B04.tif" does not exist',
 )
 def test_bounds():
-    with RasterDataset.open('tests/fixtures/extra/B04.tif') as ds:
-        assert np.all(ds.bounds() == [
-            (499980.0, 5890200.0),
-            (609780.0, 6000000.0),
-        ])
-        assert np.all(ds.bounds(4326) == [
-            (26.999700868340735, 53.16117354432605),
-            (28.68033586831364, 54.136377428252246)]
-                      )
+    with RasterDataset.open("tests/fixtures/extra/B04.tif") as ds:
+        assert np.all(
+            ds.bounds()
+            == [
+                (499980.0, 5890200.0),
+                (609780.0, 6000000.0),
+            ]
+        )
+        assert np.all(
+            ds.bounds(4326) == [(26.999700868340735, 53.16117354432605), (28.68033586831364, 54.136377428252246)]
+        )
 
     with RasterDataset.create(shape=(100, 100), dtype=np.uint8) as ds:
         ds[:] = 255
@@ -270,37 +254,36 @@ def test_bounds():
                 (499980.0, 5890200.0),
                 (609780.0, 6000000.0),
             ],
-            32635
+            32635,
         )
-        assert np.all(ds.bounds(32635) == [
-            (499980.0, 5890200.0),
-            (609780.0, 6000000.0),
-        ])
-        ds.set_bounds(
-            [
-                (26.999700868340735, 53.16117354432605),
-                (28.68033586831364, 54.136377428252246)
-            ],
-            4326
+        assert np.all(
+            ds.bounds(32635)
+            == [
+                (499980.0, 5890200.0),
+                (609780.0, 6000000.0),
+            ]
         )
-        assert np.all(ds.bounds() == [
-            (26.999700868340735, 53.16117354432605),
-            (28.68033586831364, 54.136377428252246)
-        ])
-        assert np.all(ds.bounds(32635).round() == [
-            [499980.0, 5890200.0],
-            [609780.0, 6000000.0],
-        ])
+        ds.set_bounds([(26.999700868340735, 53.16117354432605), (28.68033586831364, 54.136377428252246)], 4326)
+        assert np.all(ds.bounds() == [(26.999700868340735, 53.16117354432605), (28.68033586831364, 54.136377428252246)])
+        assert np.all(
+            ds.bounds(32635).round()
+            == [
+                [499980.0, 5890200.0],
+                [609780.0, 6000000.0],
+            ]
+        )
         result = to_geojson(ds.bounds_polygon(), precision=9)
         assert result == {
             "type": "Polygon",
-            "coordinates": [[
-                [26.999700868, 53.161173544],
-                [28.680335868, 53.161173544],
-                [28.680335868, 54.136377428],
-                [26.999700868, 54.136377428],
-                [26.999700868, 53.161173544]
-            ]]
+            "coordinates": [
+                [
+                    [26.999700868, 53.161173544],
+                    [28.680335868, 53.161173544],
+                    [28.680335868, 54.136377428],
+                    [26.999700868, 54.136377428],
+                    [26.999700868, 53.161173544],
+                ]
+            ],
         }
 
 
@@ -311,10 +294,9 @@ def test_crop_by_geometry():
         geoinfo=GeoInfo(
             epsg=32720,
             transform=affine.Affine(
-                10.000000005946216, 0.0, 554680.0000046358,
-                0.0, -10.000000003180787, 6234399.99998708
-            )
-        )
+                10.000000005946216, 0.0, 554680.0000046358, 0.0, -10.000000003180787, 6234399.99998708
+            ),
+        ),
     )
     ds1[:] = np.random.randint(64, 128, (1134, 1134), np.uint8)
 
@@ -324,29 +306,30 @@ def test_crop_by_geometry():
         geoinfo=GeoInfo(
             epsg=32720,
             transform=affine.Affine(
-                10.000000005946317, 0.0, 554680.0000046354,
-                0.0, -10.00000000318243, 6245339.999990689
-            )
-        )
+                10.000000005946317, 0.0, 554680.0000046354, 0.0, -10.00000000318243, 6245339.999990689
+            ),
+        ),
     )
     ds2[:] = np.random.randint(128, 192, (1134, 1134), np.uint8)
 
     geometry = {
         "type": "Polygon",
-        "coordinates": [[
-            [-62.403073310852044, -34.02648590051866],
-            [-62.40650653839111, -34.03818674708322],
-            [-62.398738861083984, -34.03943142302355],
-            [-62.395563125610344, -34.02780188173055],
-            [-62.403073310852044, -34.02648590051866],
-        ]]
+        "coordinates": [
+            [
+                [-62.403073310852044, -34.02648590051866],
+                [-62.40650653839111, -34.03818674708322],
+                [-62.398738861083984, -34.03943142302355],
+                [-62.395563125610344, -34.02780188173055],
+                [-62.403073310852044, -34.02648590051866],
+            ]
+        ],
     }
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         cropped_ds, mask = ds1.crop_by_geometry(geometry, extra_ds=[ds2])
-        cropped_ds.to_file(f'{tmp_dir}/cropped.png', PNG())
+        cropped_ds.to_file(f"{tmp_dir}/cropped.png", PNG())
         cropped_ds_r100, _ = ds1.crop_by_geometry(geometry, extra_ds=[ds2], resolution=(100, 100))
-        cropped_ds_r100.to_file(f'{tmp_dir}/cropped_100.png', PNG())
+        cropped_ds_r100.to_file(f"{tmp_dir}/cropped_100.png", PNG())
         assert all((np.array(cropped_ds.shape) / 10).round() == cropped_ds_r100.shape)
 
     # crop by 3857
@@ -355,22 +338,23 @@ def test_crop_by_geometry():
         geometry_3857 = geometry_transform(geometry_4326, 4326, 3857)
         geometry_3857.FlattenTo2D()
         cropped_ds, mask = ds1.crop_by_geometry(geometry_3857, epsg=3857)
-        cropped_ds.to_file(f'{tmp_dir}/cropped_by3857.tiff', GTiff())
+        cropped_ds.to_file(f"{tmp_dir}/cropped_by3857.tiff", GTiff())
 
     # crop to 3857
     with tempfile.TemporaryDirectory() as tmp_dir:
         cropped_ds_3857, mask = ds1.crop_by_geometry(geometry, out_epsg=3857)
         assert cropped_ds_3857.geoinfo.epsg == 3857
-        cropped_ds_3857.to_file(f'{tmp_dir}/cropped_to3857.tiff', GTiff())
+        cropped_ds_3857.to_file(f"{tmp_dir}/cropped_to3857.tiff", GTiff())
 
-    small_geometry = shapely.geometry.mapping(
-        shapely.geometry.shape(geometry).buffer(-0.003868))
+    small_geometry = shapely.geometry.mapping(shapely.geometry.shape(geometry).buffer(-0.003868))
     with pytest.raises(RuntimeError):
         ds1.crop_by_geometry(small_geometry)
 
     # crop by custom crs
     # https://epsg.io/102033
-    aea_proj = '+proj=aea +lat_0=-32 +lon_0=-60 +lat_1=-5 +lat_2=-42 +x_0=0 +y_0=0 +ellps=aust_SA +units=m +no_defs +type=crs'
+    aea_proj = (
+        "+proj=aea +lat_0=-32 +lon_0=-60 +lat_1=-5 +lat_2=-42 +x_0=0 +y_0=0 +ellps=aust_SA +units=m +no_defs +type=crs"
+    )
     cropped_ds, mask_ds = ds1.crop_by_geometry(geometry, extra_ds=[ds2], out_proj4=aea_proj, apply_mask=False)
     assert cropped_ds.geoinfo.proj4
     img = cropped_ds[:]
@@ -378,6 +362,7 @@ def test_crop_by_geometry():
 
     img = mask_ds[:]
     assert (img.min(), img.max()) == (0, 1)
+
 
 def test_write():
     img = np.ones((3, 5, 5))
@@ -399,40 +384,44 @@ def test_write():
     ds[2:5, 2:5] = 1
 
 
-@pytest.mark.skipif(not os.getenv('TEST_COMPARE_WARP', ''), reason='skip comparison warp')
+@pytest.mark.skipif(not os.getenv("TEST_COMPARE_WARP", ""), reason="skip comparison warp")
 @pytest.mark.skipif(
-    not os.path.exists('tests/fixtures/extra/B02_10m.jp2'),
+    not os.path.exists("tests/fixtures/extra/B02_10m.jp2"),
     reason='extra file "tests/fixtures/extra/B02_10m.jp2" does not exist',
 )
 def test_compare_warp_fast_warp():
     np.random.randint(1622825326.8494937)
 
-    with RasterDataset.open('tests/fixtures/extra/B02_10m.jp2') as ds:
+    with RasterDataset.open("tests/fixtures/extra/B02_10m.jp2") as ds:
         ds_bounds = ds.bounds()
 
         size = 1000
         hw_range = np.array([50, 500]) * ds.resolution
 
-        xy = np.array([
-            np.random.randint(ds_bounds[0][0], ds_bounds[1][0] - hw_range[1], size),
-            np.random.randint(ds_bounds[0][1], ds_bounds[1][1] - hw_range[1], size)
-        ])
-        hw = np.array([
-            np.random.randint(*hw_range, size),
-            np.random.randint(*hw_range, size),
-        ])
+        xy = np.array(
+            [
+                np.random.randint(ds_bounds[0][0], ds_bounds[1][0] - hw_range[1], size),
+                np.random.randint(ds_bounds[0][1], ds_bounds[1][1] - hw_range[1], size),
+            ]
+        )
+        hw = np.array(
+            [
+                np.random.randint(*hw_range, size),
+                np.random.randint(*hw_range, size),
+            ]
+        )
 
         bboxes = np.array([xy, xy + hw]).reshape(4, -1).T
 
-        with threadpool_limits(limits=1, user_api='blas'):
+        with threadpool_limits(limits=1, user_api="blas"):
             for bbox in tqdm.tqdm(bboxes):
-                ds_warp = ds.fast_warp(bbox)
+                ds.fast_warp(bbox)
 
             for bbox in tqdm.tqdm(bboxes):
-                img_warp, geoinfo = ds.fast_warp_as_array(bbox)
+                ds.fast_warp_as_array(bbox)
 
         for bbox in tqdm.tqdm(bboxes):
-            ds_warp = ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)
+            ds.warp(bbox, bbox_epsg=ds.geoinfo.epsg)
 
 
 def test_meta_save_load():
@@ -443,10 +432,9 @@ def test_meta_save_load():
         geoinfo=GeoInfo(
             epsg=32720,
             transform=affine.Affine(
-                10.000000005946216, 0.0, 554680.0000046358,
-                0.0, -10.000000003180787, 6234399.99998708
-            )
-        )
+                10.000000005946216, 0.0, 554680.0000046358, 0.0, -10.000000003180787, 6234399.99998708
+            ),
+        ),
     )
     ds[:] = np.random.randint(64, 128, shape, np.uint8)
 
@@ -456,21 +444,18 @@ def test_meta_save_load():
             assert meta[k] == v
 
     def check_meta(desired_meta: dict):
-        formats = {
-            'jp2': JP2OpenJPEG(),
-            'tiff': GTiff(compress=GTiff.Compress.deflate)
-        }
+        formats = {"jp2": JP2OpenJPEG(), "tiff": GTiff(compress=GTiff.Compress.deflate)}
 
         for ext, driver in formats.items():
 
             # ds -> file -> ds
-            with tempfile.NamedTemporaryFile(suffix=f'.{ext}') as fd:
+            with tempfile.NamedTemporaryFile(suffix=f".{ext}") as fd:
                 ds.to_file(fd.name, driver)
                 with RasterDataset.open(fd.name) as ds_loaded:
                     assert_metadata(desired_meta, ds_loaded.meta)
 
             # ds -> bytes -> file -> ds
-            with tempfile.NamedTemporaryFile(suffix=f'.{ext}') as fd:
+            with tempfile.NamedTemporaryFile(suffix=f".{ext}") as fd:
                 fd.write(ds.to_bytes(driver))
                 fd.file.flush()
                 with RasterDataset.open(fd.name) as ds_loaded:
@@ -481,26 +466,25 @@ def test_meta_save_load():
             with RasterDataset.from_bytes(data_b) as ds_loaded:
                 assert_metadata(desired_meta, ds_loaded.meta)
 
-
-    meta = {'one': 1}
+    meta = {"one": 1}
     ds.meta = meta
     check_meta(meta)
 
-    meta['two'] = 2
+    meta["two"] = 2
     ds.meta = meta
     check_meta(meta)
 
     with pytest.raises(TypeError):
-        ds.meta['not work'] = 'not work'
+        ds.meta["not work"] = "not work"
 
     # python 3.9 feature
     if sys.version_info >= (3, 9, 0):
-        meta |= {'test1': 'string', 'test2': 1.4}
-        ds.meta |= {'test1': 'string', 'test2': 1.4}
+        meta |= {"test1": "string", "test2": 1.4}
+        ds.meta |= {"test1": "string", "test2": 1.4}
     else:
-        meta.update({'test1': 'string', 'test2': 1.4})
+        meta.update({"test1": "string", "test2": 1.4})
         ds_meta = dict(ds.meta)
-        ds_meta.update({'test1': 'string', 'test2': 1.4})
+        ds_meta.update({"test1": "string", "test2": 1.4})
         ds.meta = ds_meta
 
     check_meta(meta)
@@ -526,18 +510,21 @@ def test_raster_union():
     assert np.array_equal(ds[:], np.array([[3, 1, 2, 3], [6, 4, 5, 6], [9, 7, 8, 9], [0, 1, 2, 3]]).T)
 
 
-@pytest.mark.parametrize("points,expected", [
-    [[], []],
-    [[{'type': 'Point', 'coordinates': [0, 0]}], [None]],
-    [[{'type': 'Point', 'coordinates': [-1, -1]}], [None]],
-    [[{'type': 'Point', 'coordinates': [0, 0.1]}], [11]],
-    [[{'type': 'Point', 'coordinates': [0.2, 2.5]}], [1]],
-    [[{'type': 'Point', 'coordinates': [2.9, 4.9]}], [None]],
-    [[{'type': 'Point', 'coordinates': [3, 4.9]}], [None]],
-    [[{'type': 'Point', 'coordinates': [2.9, 5]}], [None]],
-    [[{'type': 'Point', 'coordinates': [3, 5]}], [None]],
-    [[{'type': 'Point', 'coordinates': coord} for coord in [[0.2, 2.5], [0, 0.1], [10, 10]]], [1, 11, None]],
-])
+@pytest.mark.parametrize(
+    "points,expected",
+    [
+        [[], []],
+        [[{"type": "Point", "coordinates": [0, 0]}], [None]],
+        [[{"type": "Point", "coordinates": [-1, -1]}], [None]],
+        [[{"type": "Point", "coordinates": [0, 0.1]}], [11]],
+        [[{"type": "Point", "coordinates": [0.2, 2.5]}], [1]],
+        [[{"type": "Point", "coordinates": [2.9, 4.9]}], [None]],
+        [[{"type": "Point", "coordinates": [3, 4.9]}], [None]],
+        [[{"type": "Point", "coordinates": [2.9, 5]}], [None]],
+        [[{"type": "Point", "coordinates": [3, 5]}], [None]],
+        [[{"type": "Point", "coordinates": coord} for coord in [[0.2, 2.5], [0, 0.1], [10, 10]]], [1, 11, None]],
+    ],
+)
 def test_values_by_points(points, expected):
     ds = RasterDataset.create(shape=(3, 5), dtype=int)
     ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
@@ -551,5 +538,5 @@ def test_values_by_points_multiband():
     ds[:] = np.array(range(1, ds.size + 1)).reshape(ds.shape)
     ds.set_bounds([(0, 0), ds.shape[-2:][::-1]], epsg=4326)
 
-    value = ds.values_by_points([{'type': 'Point', 'coordinates': [0.2, 2.5]}])[0]
+    value = ds.values_by_points([{"type": "Point", "coordinates": [0.2, 2.5]}])[0]
     assert np.array_equal(value, np.array([1, 16]))
