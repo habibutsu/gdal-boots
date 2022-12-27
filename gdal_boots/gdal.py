@@ -492,9 +492,9 @@ class RasterDataset:
 
         driver = gdal.GetDriverByName("MEM")
         ds = driver.Create("", width, height, bands, DTYPE_TO_GDAL[dtype])
-        self = cls(ds)
-        self.geoinfo = geoinfo
-        return self
+        obj = cls(ds)
+        obj.geoinfo = geoinfo
+        return obj
 
     def to_file(self, filename: str, options: DriverOptions) -> None:
         driver = options.driver
@@ -748,6 +748,9 @@ class RasterDataset:
         if not geom_srs.IsSame(ds_srs):
             geometry = transform_by_srs(geometry, geom_srs, ds_srs)
 
+        json_geometry = geometry.ExportToJson()
+        vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
+
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
@@ -758,9 +761,8 @@ class RasterDataset:
             out_proj4=out_proj4,
             resampling=resampling,
         )
-        vect_ds = VectorDataset.open(geometry.ExportToJson(), srs=ds_srs)
+        mask_ds: RasterDataset = RasterDataset.create(warped_ds.shape, np.uint8, geoinfo=warped_ds.geoinfo)
 
-        mask_ds = RasterDataset.create(warped_ds.shape, warped_ds.dtype, geoinfo=warped_ds.geoinfo)
         vect_ds.rasterize(mask_ds)
         mask_img = mask_ds[:]
         if apply_mask:
@@ -863,14 +865,14 @@ class Layer:
     def features(self):
         return Features(self.layer)
 
-    def rasterize(self, raster: RasterDataset, all_touched=True):
+    def rasterize(self, raster: RasterDataset, all_touched=True, burn_values=None):
         shape = raster.shape
         if len(shape) == 3:
             bands = list(range(1, shape[0] + 1))
-            burn_values = [1] * shape[0]
+            burn_values = burn_values or [1] * shape[0]
         else:
             bands = [1]
-            burn_values = [1]
+            burn_values = burn_values or [1]
 
         gdal.RasterizeLayer(
             raster.ds,
@@ -930,12 +932,20 @@ class VectorDataset:
         layers_str = ",".join([layer.name for layer in self.layers])
         return f"<{type(self).__name__} {hex(id(self))} {layers_str}>"
 
+    # TODO
+    # def fix_fid(self):
+    #     gdal.VectorTranslate(
+    #         layerCreationOptions=["FID=fid_fixed", "GEOMETRY_NULLABLE=NO"],
+    #         SQLStatement="SELECT *, (row_number() OVER (ORDER BY 1) - 1) AS fid_fixed FROM '<layer_name>'",
+    #     )
+
     @classmethod
     def open(cls, filename: str, open_flag=gdal.GA_ReadOnly, srs: SpatialReference = None):
         ds = gdal.OpenEx(filename, gdal.OF_VECTOR | open_flag)
         if srs:
             proj4_srs = srs.ExportToProj4()
             for idx in range(ds.GetLayerCount()):
+                # this is illegal
                 ds.GetLayer(idx).GetSpatialRef().ImportFromProj4(proj4_srs)
         return cls(ds)
 
@@ -953,10 +963,10 @@ class VectorDataset:
         ds.CreateLayer("geometry", srs=srs)
         # gdal.FileFromMemBuffer(mem_id, data)
         # ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
-        self = cls(ds)
-        self._mem_id = mem_id
+        obj = cls(ds)
+        obj._mem_id = mem_id
         # ds_ = gdal.VectorTranslate('', ds_mem, format='MEMORY', **ext_args)
-        return self
+        return obj
 
     def to_file(self, filename: str, options: DriverOptions):
         # # No such file or directory
@@ -1006,9 +1016,9 @@ class VectorDataset:
     def layers(self):
         return Layers(self.ds)
 
-    def rasterize(self, raster: RasterDataset, all_touched=True):
+    def rasterize(self, raster: RasterDataset, all_touched=True, burn_values=None):
         for layer in self.layers:
-            layer.rasterize(raster)
+            layer.rasterize(raster, all_touched=all_touched, burn_values=burn_values)
         return raster
 
     def simplify(self, tolerance=5):

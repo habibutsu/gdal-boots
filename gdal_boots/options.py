@@ -36,7 +36,7 @@ class DriverOptions:
         return driver.GetMetadataItem(gdal.DMD_EXTENSIONS).split(" ")
 
     @property
-    def driver(self):
+    def driver(self) -> gdal.Driver:
         return gdal.GetDriverByName(self.driver_name)
 
 
