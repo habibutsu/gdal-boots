@@ -117,6 +117,7 @@ class GeoInfo:
             srs.ImportFromEPSG(self.epsg)
         elif self.proj4:
             srs.ImportFromProj4(self.proj4)
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         return srs
 
     def epsg_from_srs(self, srs: SpatialReference):
@@ -127,6 +128,7 @@ class GeoInfo:
 
     def epsg_from_wkt(self, wkt):
         srs = SpatialReference()
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
         srs.ImportFromWkt(wkt)
         self.epsg_from_srs(srs)
 
@@ -207,7 +209,8 @@ class RasterDataset:
             ds = self.ds
             # crs = SpatialReference()
             # crs.ImportFromEPSG(geoinfo.epsg)
-            ds.SetSpatialRef(geoinfo.srs)
+            srs = geoinfo.srs
+            ds.SetSpatialRef(srs)
             ds.SetGeoTransform(geoinfo.transform.to_gdal())
 
     @property
@@ -611,6 +614,8 @@ class RasterDataset:
         out_proj4: str = None,
         nodata=None,
         out_nodata=None,
+        width=None,
+        height=None
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
@@ -645,6 +650,8 @@ class RasterDataset:
             format="MEM",
             srcNodata=self.nodata[0] if self.nodata[0] else nodata,
             dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
+            width=width,
+            height=height
         )
         return type(self)(ds)
 
@@ -751,6 +758,8 @@ class RasterDataset:
         json_geometry = geometry.ExportToJson()
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
 
+        # TODO: filtering input geometry for discarding parts that out of bounds
+        # TODO: progress calback for warping
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
@@ -762,13 +771,17 @@ class RasterDataset:
             resampling=resampling,
         )
         mask_ds: RasterDataset = RasterDataset.create(warped_ds.shape, np.uint8, geoinfo=warped_ds.geoinfo)
-
         vect_ds.rasterize(mask_ds)
-        mask_img = mask_ds[:]
+
         if apply_mask:
-            img = warped_ds[:].copy()
-            img[mask_img == 0] = self.nodata[0] or 0
-            warped_ds[:] = img
+            # TODO: sliding window for minizime memory usage
+            # TODO: progress callback
+            mask_img = mask_ds[:]
+            img = warped_ds[:]
+            img_upd = img.copy()
+            del img
+            img_upd[mask_img == 0] = self.nodata[0] or 0
+            warped_ds[:] = img_upd
         return warped_ds, mask_ds
 
     def union(self, other_ds: List[RasterDataset]) -> RasterDataset:
@@ -882,6 +895,9 @@ class Layer:
             options=["ALL_TOUCHED={}".format("TRUE" if all_touched else "FALSE")],
         )
 
+    def bounds(self) -> tuple[float, float, float, float]:
+        return self.layer.GetExtent()
+
     def __repr__(self):
         return f"<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>"
 
@@ -945,7 +961,7 @@ class VectorDataset:
         if srs:
             proj4_srs = srs.ExportToProj4()
             for idx in range(ds.GetLayerCount()):
-                # this is illegal
+                # this is illegal?
                 ds.GetLayer(idx).GetSpatialRef().ImportFromProj4(proj4_srs)
         return cls(ds)
 

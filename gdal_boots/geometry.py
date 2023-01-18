@@ -122,6 +122,7 @@ def to_geojson(geometry: ogr.Geometry, flatten: bool = True, precision: int = No
 def srs_from_epsg(epsg: int) -> SpatialReference:
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg)
+    srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     return srs
 
 

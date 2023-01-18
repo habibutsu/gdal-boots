@@ -1,10 +1,11 @@
 import os.path
 import tempfile
-
+import json
 import numpy as np
 import pytest
 
-from gdal_boots import options
+from affine import Affine
+from gdal_boots import options, GeoInfo
 from gdal_boots.gdal import RasterDataset, VectorDataset
 
 
@@ -43,3 +44,31 @@ def test_rasterize():
         assert np.all(counts == [29511509, 628591])
 
         ds.to_file(fd.name, options.GTiff())
+
+
+def test_rasterize_basic():
+    geometry = {
+        "type": "Polygon", "coordinates": [ [
+            [ 0.6, 1.0 ],
+            [ 0.6, 0.75 ],
+            [ 0.0, 0.75 ],
+            [ 0.0, 1.0 ],
+            [ 0.6, 1.0 ]
+        ] ]
+    }
+    geoinfo = GeoInfo(
+        epsg=4326,
+        transform=Affine(0.01, 0.0, 0.0, 0.0, -0.01, 1.0)
+    )
+    shape = (100, 100)
+
+    vect_ds = VectorDataset.open(json.dumps(geometry))
+    if geoinfo.epsg != 4326:
+        vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(geoinfo.epsg)
+
+    mask_ds = RasterDataset.create(shape, np.uint8, geoinfo=geoinfo)
+    vect_ds.rasterize(mask_ds, all_touched=False)
+    assert mask_ds[:25,:60].all()
+
+    vect_ds.rasterize(mask_ds, all_touched=True)
+    assert mask_ds[:26,:61].all()
