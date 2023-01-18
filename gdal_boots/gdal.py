@@ -36,9 +36,13 @@ from .geometry import transform_by_srs
 from .options import DriverOptions
 
 try:
-    import orjson as json
+    import orjson
+    json_dumps = lambda data: orjson.dumps(data).decode()
+    json_loads = orjson.loads
 except ImportError:
     import json
+    json_dumps = json.dumps
+    json_loads = json.loads
 
 logger = logging.getLogger(__name__)
 
@@ -216,12 +220,12 @@ class RasterDataset:
     @property
     def meta(self) -> dict:
         meta = self.ds.GetMetadata()
-        return imdict({k: json.loads(v[5:]) if v.startswith("json:") else v for k, v in meta.items()})
+        return imdict({k: json_loads(v[5:]) if v.startswith("json:") else v for k, v in meta.items()})
 
     @meta.setter
     def meta(self, value: dict) -> None:
         if value:
-            encoded_value = {k: f"json:{json.dumps(v)}" for k, v in value.items()}
+            encoded_value = {k: f"json:{json_dumps(v)}" for k, v in value.items()}
             self.ds.SetMetadata(encoded_value)
 
     @property
