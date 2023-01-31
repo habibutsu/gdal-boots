@@ -759,7 +759,13 @@ class RasterDataset:
         if not geom_srs.IsSame(ds_srs):
             geometry = transform_by_srs(geometry, geom_srs, ds_srs)
 
-        json_geometry = geometry.ExportToJson()
+        # no reason make warp bigger than source file
+        bound_geometry = self.bounds_polygon(epsg=self.geoinfo.epsg)
+        crop_geometry = geometry.Intersection(bound_geometry)
+        bbox = crop_geometry.GetEnvelope()
+
+        json_geometry = crop_geometry.ExportToJson()
+
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
 
         # TODO: filtering input geometry for discarding parts that out of bounds
