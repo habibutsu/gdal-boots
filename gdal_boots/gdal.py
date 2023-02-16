@@ -761,6 +761,9 @@ class RasterDataset:
 
         # no reason make warp bigger than source file
         bound_geometry = self.bounds_polygon(epsg=self.geoinfo.epsg)
+        for ds in extra_ds:
+            bound_geometry = bound_geometry.Union(ds.bounds_polygon(epsg=self.geoinfo.epsg))
+
         crop_geometry = geometry.Intersection(bound_geometry)
         bbox = crop_geometry.GetEnvelope()
 
@@ -881,8 +884,8 @@ class Layer:
         return self.layer.GetName()
 
     @property
-    def epsg(self):
-        return self.layer.GetSpatialRef().GetAuthorityCode(None)
+    def epsg(self) -> int:
+        return int(self.layer.GetSpatialRef().GetAuthorityCode(None))
 
     @property
     def features(self):
@@ -905,8 +908,37 @@ class Layer:
             options=["ALL_TOUCHED={}".format("TRUE" if all_touched else "FALSE")],
         )
 
-    def bounds(self) -> tuple[float, float, float, float]:
-        return self.layer.GetExtent()
+    def bounds(self, epsg=None):
+        """
+        return np.array([
+            [x_min, y_min],
+            [x_max, y_max]
+        ])
+        """
+
+        x_min, y_min, x_max, y_max = self.layer.GetExtent()
+        if epsg and self.epsg != epsg:
+            geometry = GeometryBuilder().create({
+                "type": "LineString",
+                "coordinates": [
+                    # lower left
+                    (x_min, y_min),
+                    # upper right
+                    (x_max, y_max),
+                ]})
+            geometry_upd = geometry_transform(geometry, self.epsg, epsg)
+            geometry.Destroy()
+            [
+                # lower left
+                (x_min, y_min),
+                # upper right
+                (x_max, y_max),
+            ] = geometry_upd.GetPoints(2)
+            geometry_upd.Destroy()
+        return np.array([
+            [x_min, y_min],
+            [x_max, y_max]
+        ])
 
     def __repr__(self):
         return f"<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>"
