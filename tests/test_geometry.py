@@ -1,8 +1,18 @@
 import json
-
 import pytest
+from ctypes import CDLL, c_char_p
+from ctypes.util import find_library
 
 from gdal_boots.geometry import GeometryBuilder, make_valid_geojson, to_geojson, transform, transform_geojson
+
+
+def get_geos_version():
+    _lgeos = CDLL(find_library('geos_c'))
+    GEOSversion = _lgeos.GEOSversion
+    GEOSversion.restype = c_char_p
+    GEOSversion.argtypes = []
+
+    return tuple(int(v) for v in GEOSversion().decode().split("-")[0].split("."))
 
 
 @pytest.fixture
@@ -135,6 +145,10 @@ def test_to_geojson(geometry_geojson_4326):
     assert geom_geojson == geom
 
 
+@pytest.mark.skipif(
+    get_geos_version() < (3, 8, 0),
+    reason='GEOS 3.8 or later needed for MakeValid',
+)
 def test_make_valid():
 
     self_intersection = {
