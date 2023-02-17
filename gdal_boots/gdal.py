@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import Any, Callable, Iterable, List, Tuple, Union
+from typing import Any, Callable, Iterable, List, Tuple, Union, Optional
 from uuid import uuid4
 
 import affine
@@ -514,6 +514,15 @@ class RasterDataset:
         # )
         ds.FlushCache()
 
+    def is_valid(self) -> bool:
+        ds = self.ds
+        try:
+            for i in range(1, ds.RasterCount + 1):
+                ds.GetRasterBand(i).Checksum()
+        except RuntimeError as e:
+            return False
+        return True
+
     @classmethod
     def from_stream(cls, stream: io.BytesIO, open_flag=gdal.OF_RASTER | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
         mem_id = f"/vsimem/{uuid4()}"
@@ -657,6 +666,9 @@ class RasterDataset:
             width=width,
             height=height
         )
+        if ds is None:
+            logger.warning("Could not warp dataset")
+            return
         return type(self)(ds)
 
     def fast_warp_as_array(
@@ -749,7 +761,7 @@ class RasterDataset:
         out_proj4: str = None,
         resampling: Resampling = Resampling.near,
         apply_mask: bool = True,
-    ) -> Tuple[RasterDataset, RasterDataset]:
+    ) -> Tuple[Optional[RasterDataset], Optional[RasterDataset]]:
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
@@ -771,7 +783,6 @@ class RasterDataset:
 
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
 
-        # TODO: filtering input geometry for discarding parts that out of bounds
         # TODO: progress calback for warping
         bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
@@ -783,6 +794,9 @@ class RasterDataset:
             out_proj4=out_proj4,
             resampling=resampling,
         )
+        if warped_ds is None:
+            return None, None
+
         mask_ds: RasterDataset = RasterDataset.create(warped_ds.shape, np.uint8, geoinfo=warped_ds.geoinfo)
         vect_ds.rasterize(mask_ds)
 
