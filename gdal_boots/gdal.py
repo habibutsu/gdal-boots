@@ -780,11 +780,9 @@ class RasterDataset:
         bbox = crop_geometry.GetEnvelope()
 
         json_geometry = crop_geometry.ExportToJson()
-
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
 
         # TODO: progress calback for warping
-        bbox = geometry.GetEnvelope()
         warped_ds = self.warp(
             (bbox[0], bbox[2], bbox[1], bbox[3]),
             bbox_srs=ds_srs,
