@@ -786,11 +786,12 @@ class RasterDataset:
                 bound_geometry = bound_geometry.Union(ds.bounds_polygon(epsg=self.geoinfo.epsg))
 
             crop_geometry = geometry.Intersection(bound_geometry)
+            json_geometry = crop_geometry.ExportToJson()
             bbox = crop_geometry.GetEnvelope()
         else:
             bbox = geometry.GetEnvelope()
+            json_geometry = geometry.ExportToJson()
 
-        json_geometry = crop_geometry.ExportToJson()
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
 
         # TODO: progress calback for warping
