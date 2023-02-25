@@ -1,4 +1,4 @@
-__version__ = "0.1.49"
+__version__ = "0.1.50"
 
 from .gdal import GeoInfo, RasterDataset, Resampling, VectorDataset
 from .options import ECW, GPKG, PNG, ESRIShape, GeoJSON, GTiff, JP2OpenJPEG
