@@ -770,6 +770,9 @@ class RasterDataset:
         ds_srs = self.geoinfo.srs
         if not geom_srs.IsSame(ds_srs):
             geometry = transform_by_srs(geometry, geom_srs, ds_srs)
+            if not geometry.IsValid():
+                # fix after reprojection
+                geometry = geometry.MakeValid()
 
         # no reason make warp bigger than source file
         bound_geometry = self.bounds_polygon(epsg=self.geoinfo.epsg)
