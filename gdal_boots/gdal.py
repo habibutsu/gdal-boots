@@ -761,7 +761,13 @@ class RasterDataset:
         out_proj4: str = None,
         resampling: Resampling = Resampling.near,
         apply_mask: bool = True,
+        actual_bounds: bool = False
     ) -> Tuple[Optional[RasterDataset], Optional[RasterDataset]]:
+        '''
+            actual_bounds - in case when geometry much bigger actual bounds of raster
+            there is no reason to make warp bigger than source file, with this
+            flag you can change behaviour (default: False)
+        '''
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
@@ -774,13 +780,15 @@ class RasterDataset:
                 # fix after reprojection
                 geometry = geometry.MakeValid()
 
-        # no reason make warp bigger than source file
-        bound_geometry = self.bounds_polygon(epsg=self.geoinfo.epsg)
-        for ds in extra_ds:
-            bound_geometry = bound_geometry.Union(ds.bounds_polygon(epsg=self.geoinfo.epsg))
+        if actual_bounds:
+            bound_geometry = self.bounds_polygon(epsg=self.geoinfo.epsg)
+            for ds in extra_ds:
+                bound_geometry = bound_geometry.Union(ds.bounds_polygon(epsg=self.geoinfo.epsg))
 
-        crop_geometry = geometry.Intersection(bound_geometry)
-        bbox = crop_geometry.GetEnvelope()
+            crop_geometry = geometry.Intersection(bound_geometry)
+            bbox = crop_geometry.GetEnvelope()
+        else:
+            bbox = geometry.GetEnvelope()
 
         json_geometry = crop_geometry.ExportToJson()
         vect_ds = VectorDataset.open(json_geometry, srs=ds_srs)
