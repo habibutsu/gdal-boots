@@ -42,3 +42,11 @@ upload:
 		-u ${ONESOIL_PYPI_USER} \
 		-p ${ONESOIL_PYPI_PASSWORD} \
 		dist/*
+
+
+delete:
+	curl -u ${ONESOIL_PYPI_USER}:${ONESOIL_PYPI_PASSWORD} \
+		--form ":action=remove_pkg" \
+		--form "name=gdal_boots" \
+		--form "version=$(VERSION)" \
+		https://pypi.onesoil.ai/
