@@ -7,7 +7,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
-from typing import Any, Callable, Iterable, List, Tuple, Union, Optional
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Union
 from uuid import uuid4
 
 import affine
@@ -37,10 +37,14 @@ from .options import DriverOptions
 
 try:
     import orjson
-    json_dumps = lambda data: orjson.dumps(data).decode()
+
+    def json_dumps(data):
+        return orjson.dumps(data).decode()
+
     json_loads = orjson.loads
 except ImportError:
     import json
+
     json_dumps = json.dumps
     json_loads = json.loads
 
@@ -519,7 +523,7 @@ class RasterDataset:
         try:
             for i in range(1, ds.RasterCount + 1):
                 ds.GetRasterBand(i).Checksum()
-        except RuntimeError as e:
+        except RuntimeError:
             return False
         return True
 
@@ -628,7 +632,7 @@ class RasterDataset:
         nodata=None,
         out_nodata=None,
         width=None,
-        height=None
+        height=None,
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
@@ -664,7 +668,7 @@ class RasterDataset:
             srcNodata=self.nodata[0] if self.nodata[0] else nodata,
             dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
             width=width,
-            height=height
+            height=height,
         )
         if ds is None:
             logger.warning("Could not warp dataset")
@@ -761,13 +765,13 @@ class RasterDataset:
         out_proj4: str = None,
         resampling: Resampling = Resampling.near,
         apply_mask: bool = True,
-        actual_bounds: bool = False
+        actual_bounds: bool = False,
     ) -> Tuple[Optional[RasterDataset], Optional[RasterDataset]]:
-        '''
-            actual_bounds - in case when geometry much bigger actual bounds of raster
-            there is no reason to make warp bigger than source file, with this
-            flag you can change behaviour (default: False)
-        '''
+        """
+        actual_bounds - in case when geometry much bigger actual bounds of raster
+        there is no reason to make warp bigger than source file, with this
+        flag you can change behaviour (default: False)
+        """
         if not isinstance(geometry, ogr.Geometry):
             geometry = GeometryBuilder().create(geometry)
         extra_ds = extra_ds or []
@@ -942,14 +946,17 @@ class Layer:
 
         x_min, y_min, x_max, y_max = self.layer.GetExtent()
         if epsg and self.epsg != epsg:
-            geometry = GeometryBuilder().create({
-                "type": "LineString",
-                "coordinates": [
-                    # lower left
-                    (x_min, y_min),
-                    # upper right
-                    (x_max, y_max),
-                ]})
+            geometry = GeometryBuilder().create(
+                {
+                    "type": "LineString",
+                    "coordinates": [
+                        # lower left
+                        (x_min, y_min),
+                        # upper right
+                        (x_max, y_max),
+                    ],
+                }
+            )
             geometry_upd = geometry_transform(geometry, self.epsg, epsg)
             geometry.Destroy()
             [
@@ -959,10 +966,7 @@ class Layer:
                 (x_max, y_max),
             ] = geometry_upd.GetPoints(2)
             geometry_upd.Destroy()
-        return np.array([
-            [x_min, y_min],
-            [x_max, y_max]
-        ])
+        return np.array([[x_min, y_min], [x_max, y_max]])
 
     def __repr__(self):
         return f"<{type(self).__name__} {hex(id(self))} {self.name}[{self.features.size}] epsg:{self.epsg}>"
@@ -1000,7 +1004,6 @@ class Layers:
 
 
 class VectorDataset:
-
     # https://livebook.manning.com/book/geoprocessing-with-python/chapter-3/1
 
     def __init__(self, ds):

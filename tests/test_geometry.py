@@ -1,18 +1,9 @@
 import json
+
 import pytest
-from ctypes import CDLL, c_char_p
-from ctypes.util import find_library
 
+from gdal_boots import gdal_version, geos_version
 from gdal_boots.geometry import GeometryBuilder, make_valid_geojson, to_geojson, transform, transform_geojson
-
-
-def get_geos_version():
-    _lgeos = CDLL(find_library('geos_c'))
-    GEOSversion = _lgeos.GEOSversion
-    GEOSversion.restype = c_char_p
-    GEOSversion.argtypes = []
-
-    return tuple(int(v) for v in GEOSversion().decode().split("-")[0].split("."))
 
 
 @pytest.fixture
@@ -145,12 +136,9 @@ def test_to_geojson(geometry_geojson_4326):
     assert geom_geojson == geom
 
 
-@pytest.mark.skipif(
-    get_geos_version() < (3, 8, 0),
-    reason='GEOS 3.8 or later needed for MakeValid',
-)
+@pytest.mark.skipif(geos_version < (3, 8, 0), reason="GEOS 3.8 or later needed for MakeValid")
+@pytest.mark.skipif(gdal_version >= (3, 6, 3), reason="different points ordering")
 def test_make_valid():
-
     self_intersection = {
         "type": "Polygon",
         "coordinates": [
@@ -560,3 +548,30 @@ def test_make_valid():
 
     # splitted to polygons
     assert len(result["coordinates"]) == 6
+
+
+@pytest.mark.skipif(geos_version < (3, 8, 0), reason="GEOS 3.8 or later needed for MakeValid")
+@pytest.mark.skipif(gdal_version < (3, 6, 3), reason="different points ordering")
+def test_make_valid_new_gdal():
+    self_intersection = {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [28, 53],
+                [28, 55],
+                [26, 53],
+                [26, 55],
+                [28, 53],
+            ]
+        ],
+    }
+
+    result = make_valid_geojson(self_intersection, precision=6)
+
+    assert result == {
+        "type": "MultiPolygon",
+        "coordinates": [
+            [[[26.0, 55.0], [27.0, 54.0], [26.0, 53.0], [26.0, 55.0]]],
+            [[[28.0, 53.0], [27.0, 54.0], [28.0, 55.0], [28.0, 53.0]]],
+        ],
+    }

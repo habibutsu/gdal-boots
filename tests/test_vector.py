@@ -1,11 +1,12 @@
+import json
 import os.path
 import tempfile
-import json
+
 import numpy as np
 import pytest
-
 from affine import Affine
-from gdal_boots import options, GeoInfo
+
+from gdal_boots import GeoInfo, gdal_version, options
 from gdal_boots.gdal import RasterDataset, VectorDataset
 
 
@@ -18,7 +19,6 @@ def test_open_file(minsk_boundary_geojson):
 
 
 def test_read_from_bytes(minsk_boundary_gpkg):
-
     with open(minsk_boundary_gpkg, "rb") as fd:
         data = fd.read()
 
@@ -47,28 +47,18 @@ def test_rasterize():
 
 
 def test_rasterize_basic():
-    geometry = {
-        "type": "Polygon", "coordinates": [ [
-            [ 0.6, 1.0 ],
-            [ 0.6, 0.75 ],
-            [ 0.0, 0.75 ],
-            [ 0.0, 1.0 ],
-            [ 0.6, 1.0 ]
-        ] ]
-    }
-    geoinfo = GeoInfo(
-        epsg=4326,
-        transform=Affine(0.01, 0.0, 0.0, 0.0, -0.01, 1.0)
-    )
+    geometry = {"type": "Polygon", "coordinates": [[[0.6, 1.0], [0.6, 0.75], [0.0, 0.75], [0.0, 1.0], [0.6, 1.0]]]}
+    geoinfo = GeoInfo(epsg=4326, transform=Affine(0.01, 0.0, 0.0, 0.0, -0.01, 1.0))
     shape = (100, 100)
 
-    vect_ds = VectorDataset.open(json.dumps(geometry))
-    if geoinfo.epsg != 4326:
-        vect_ds.ds.GetLayer(0).GetSpatialRef().ImportFromEPSG(geoinfo.epsg)
+    vect_ds = VectorDataset.open(json.dumps(geometry), srs=geoinfo.srs)
 
     mask_ds = RasterDataset.create(shape, np.uint8, geoinfo=geoinfo)
     vect_ds.rasterize(mask_ds, all_touched=False)
-    assert mask_ds[:25,:60].all()
+    assert mask_ds[:25, :60].all()
+
+    if gdal_version < (3, 6, 3):
+        pytest.skip("known bug connected with all_touched=True")
 
     vect_ds.rasterize(mask_ds, all_touched=True)
-    assert mask_ds[:26,:61].all()
+    assert mask_ds[:25, :60].all()

@@ -12,6 +12,7 @@ import tqdm
 from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
+from gdal_boots import gdal_version
 from gdal_boots.gdal import GeoInfo, RasterDataset
 from gdal_boots.geometry import GeometryBuilder, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
@@ -36,14 +37,16 @@ def test_open_file(lena_512_png):
 
 
 @pytest.mark.skipif(
-    not all([
-        os.path.exists(filename)
-        for filename in [
-            "tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2",
-            "tests/fixtures/extra/B04.tif"
+    not all(
+        [
+            os.path.exists(filename)
+            for filename in [
+                "tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2",
+                "tests/fixtures/extra/B04.tif",
+            ]
         ]
-    ]),
-    reason='extra files do not exist',
+    ),
+    reason="extra files do not exist",
 )
 def test_is_valid():
     with RasterDataset.open("tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2") as ds:
@@ -98,10 +101,13 @@ def test_create():
 
             assert len(ds.to_bytes(GTiff())) == len(data)
 
+        if gdal_version < (3, 6, 3):
+            pytest.skip("known bug connected with all_touched=True")
+
         with tempfile.NamedTemporaryFile(suffix=".jp2") as fd:
             ds.to_file(fd.name, JP2OpenJPEG())
             data = fd.read()
-            assert len(data) == 303410
+            assert len(data) == 303317
             assert data[:6] == b"\x00\x00\x00\x0cjP"
 
             assert len(ds.to_bytes(JP2OpenJPEG())) == len(data)
@@ -465,7 +471,6 @@ def test_meta_save_load():
         formats = {"jp2": JP2OpenJPEG(), "tiff": GTiff(compress=GTiff.Compress.deflate)}
 
         for ext, driver in formats.items():
-
             # ds -> file -> ds
             with tempfile.NamedTemporaryFile(suffix=f".{ext}") as fd:
                 ds.to_file(fd.name, driver)

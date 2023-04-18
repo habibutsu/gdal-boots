@@ -17,7 +17,9 @@ define run_docker_test =
 	'
 endef
 
-test_versions = docker-test/3.5.3 \
+test_versions = \
+	docker-test/3.6.3 \
+	docker-test/3.5.3 \
 	docker-test/3.4.3 \
 	docker-test/3.3.3 \
 	docker-test/3.2.3 \
@@ -32,3 +34,19 @@ docker-test/3.0.4:
 
 docker-test: $(test_versions)
 	@echo "done"
+
+upload:
+	twine upload \
+		--skip-existing \
+		--repository-url https://pypi.onesoil.ai/ \
+		-u ${ONESOIL_PYPI_USER} \
+		-p ${ONESOIL_PYPI_PASSWORD} \
+		dist/*
+
+
+delete:
+	curl -u ${ONESOIL_PYPI_USER}:${ONESOIL_PYPI_PASSWORD} \
+		--form ":action=remove_pkg" \
+		--form "name=gdal_boots" \
+		--form "version=$(VERSION)" \
+		https://pypi.onesoil.ai/
