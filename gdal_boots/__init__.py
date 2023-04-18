@@ -2,6 +2,7 @@ __version__ = "0.1.51"
 
 from .gdal import GeoInfo, RasterDataset, Resampling, VectorDataset
 from .options import ECW, GPKG, PNG, ESRIShape, GeoJSON, GTiff, JP2OpenJPEG
+from .utils import gdal_version, geos_version
 
 __all__ = [
     "GeoInfo",
@@ -15,4 +16,6 @@ __all__ = [
     "ESRIShape",
     "GeoJSON",
     "GPKG",
+    "gdal_version",
+    "geos_version",
 ]
