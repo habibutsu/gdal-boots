@@ -36,14 +36,16 @@ def test_open_file(lena_512_png):
 
 
 @pytest.mark.skipif(
-    not all([
-        os.path.exists(filename)
-        for filename in [
-            "tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2",
-            "tests/fixtures/extra/B04.tif"
+    not all(
+        [
+            os.path.exists(filename)
+            for filename in [
+                "tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2",
+                "tests/fixtures/extra/B04.tif",
+            ]
         ]
-    ]),
-    reason='extra files do not exist',
+    ),
+    reason="extra files do not exist",
 )
 def test_is_valid():
     with RasterDataset.open("tests/fixtures/extra/S2A_MSIL1C_T38TLR_20170518_B08_bad.jp2") as ds:

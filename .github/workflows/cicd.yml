@@ -1,0 +1,74 @@
+name: cicd
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        image_tag_version:
+          - 3.0.4
+          - 3.1.3
+          - 3.2.3
+          - 3.3.3
+          - 3.4.3
+          - 3.5.3
+          - 3.6.3
+    runs-on: ubuntu-latest
+    container: osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git python3-pip
+          pip3 install setuptools
+          pip3 install -r requirements.txt
+          pip3 install -r requirements-dev.txt
+
+      - name: Check code style with pre-commit
+        run: pre-commit run -a
+
+      - name: Test with pytest
+        run: pytest --cov=gdal_boots
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    if: ${{ github.repository == 'habibutsu/gdal-boots' && github.event_name == 'push' && github.ref_name == 'main' }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
+      - name: Configuring
+        run: |
+          pip install python-semantic-release==7.31.3
+          git fetch --tags
+          git config --global user.name "semantic-release"
+          git config --global user.email "semantic-release"
+
+      - name: Python Semantic Release
+        env:
+          CI: 'true'
+          GITHUB_ACTIONS: 'true'
+          REPOSITORY_USERNAME: ${{ secrets.PYPI_USER }}
+          REPOSITORY_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          REPOSITORY_URL: https://pypi.onesoil.ai
+        run: semantic-release publish -D branch=${{ github.ref_name }}
