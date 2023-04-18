@@ -6,4 +6,4 @@ pampy==0.3.*
 threadpoolctl==2.1.*
 tqdm
 shapely
-pre-commit==3.2.2
+pre-commit
