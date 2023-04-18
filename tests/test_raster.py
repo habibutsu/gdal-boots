@@ -471,7 +471,6 @@ def test_meta_save_load():
         formats = {"jp2": JP2OpenJPEG(), "tiff": GTiff(compress=GTiff.Compress.deflate)}
 
         for ext, driver in formats.items():
-
             # ds -> file -> ds
             with tempfile.NamedTemporaryFile(suffix=f".{ext}") as fd:
                 ds.to_file(fd.name, driver)

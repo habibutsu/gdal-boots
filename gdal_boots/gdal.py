@@ -1004,7 +1004,6 @@ class Layers:
 
 
 class VectorDataset:
-
     # https://livebook.manning.com/book/geoprocessing-with-python/chapter-3/1
 
     def __init__(self, ds):

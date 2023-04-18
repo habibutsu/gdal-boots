@@ -19,7 +19,6 @@ def test_open_file(minsk_boundary_geojson):
 
 
 def test_read_from_bytes(minsk_boundary_gpkg):
-
     with open(minsk_boundary_gpkg, "rb") as fd:
         data = fd.read()
 
