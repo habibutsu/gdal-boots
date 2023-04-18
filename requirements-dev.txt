@@ -2,6 +2,7 @@ pytest
 pytest-cov
 isort
 flake8
+black
 pampy==0.3.*
 threadpoolctl==2.1.*
 tqdm
