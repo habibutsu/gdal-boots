@@ -44,10 +44,15 @@ class DriverOptions:
 class PNG(DriverOptions):
     """
     Portable Network Graphics
+    https://gdal.org/drivers/raster/png.html
     """
 
     zlevel: int = 6
     nbits: int = None
+    title: str = None
+    description: str = None
+    comment: str = None
+    write_metadata_as_text: str = None
 
 
 @dataclass
