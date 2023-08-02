@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v0.2.1 (2023-08-02)
+### Fix
+* Add missed options in PNG driver ([`c1efe46`](https://github.com/habibutsu/gdal-boots/commit/c1efe46b1db5ab9bcaa2bed709d5b3341e191028))
+
 ## v0.2.0 (2023-04-18)
 ### Feature
 * Add pre-commit ([`4d749dd`](https://github.com/habibutsu/gdal-boots/commit/4d749dd9a2e3d782176872543bcd9874728c3c7d))
