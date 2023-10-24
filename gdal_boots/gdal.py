@@ -5,7 +5,6 @@ import logging
 import math
 import os
 import tempfile
-
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
@@ -641,7 +640,7 @@ class RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
         """
- 
+
         extra_ds = extra_ds or []
         x_res, y_res = resolution or (None, None)
         out_srs = None
@@ -659,7 +658,7 @@ class RasterDataset:
             out_srs = self.geoinfo.srs
 
         bbox_srs = bbox_srs or srs_from_epsg(bbox_epsg)
-        
+
         cutlineDSName = None
         cutlineLayer = None
         tmp_file = None
@@ -689,7 +688,6 @@ class RasterDataset:
             dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
             width=width,
             height=height,
-
             # crop to
             cutlineDSName=cutlineDSName,
             cutlineLayer=cutlineLayer,
@@ -899,7 +897,6 @@ class RasterDataset:
 
 
 class Feature:
-
     __slots__ = ("ref_ds", "ref_feature")
 
     def __init__(self, ds: gdal.Dataset, feature: ogr.Feature):
@@ -925,7 +922,6 @@ class Feature:
 
 
 class Features:
-
     __slots__ = ("ref_ds", "ref_layer")
 
     def __init__(self, ds: gdal.Dataset, layer: ogr.Layer):
@@ -944,13 +940,12 @@ class Features:
 
 
 class Layer:
-
     __slots__ = ("ref_ds", "ref_layer")
 
     def __init__(self, ds: gdal.Dataset, layer: ogr.Layer):
         self.ref_layer = layer
         self.ref_ds = ds
-    
+
     @classmethod
     def by_index(cls, ds: gdal.Dataset, idx: int):
         return cls(ds, ds.GetLayerByIndex(idx))
@@ -966,7 +961,7 @@ class Layer:
     @property
     def epsg(self) -> int:
         return int(self.ref_layer.GetSpatialRef().GetAuthorityCode(None))
-    
+
     def set_epsg(self, epsg: int):
         logger.warning("this is not legal way to change epsg")
         self.ref_layer.GetSpatialRef().ImportFromEPSG(epsg)
@@ -1129,7 +1124,7 @@ class VectorDataset:
             # if file already exists and has incorrect format
             # (for example empty) datasource will not created
             driver.DeleteDataSource(filename)
-            out_ds: ogr.DataSource  = driver.CreateDataSource(filename)
+            out_ds: ogr.DataSource = driver.CreateDataSource(filename)
 
         assert out_ds is not None
         for layer in self.layers:
@@ -1137,7 +1132,6 @@ class VectorDataset:
 
         out_ds.FlushCache()
         out_ds.Destroy()
-
 
     @classmethod
     def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
