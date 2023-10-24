@@ -13,10 +13,10 @@ from osgeo import gdal
 from threadpoolctl import threadpool_limits
 
 from gdal_boots import gdal_version
-from gdal_boots.gdal import GeoInfo, RasterDataset, VectorDataset, Resampling
+from gdal_boots.gdal import GeoInfo, RasterDataset, Resampling, VectorDataset
 from gdal_boots.geometry import GeometryBuilder, to_geojson
 from gdal_boots.geometry import transform as geometry_transform
-from gdal_boots.options import GeoJSON, GPKG, PNG, GTiff, JP2OpenJPEG
+from gdal_boots.options import GPKG, PNG, GTiff, JP2OpenJPEG
 
 np.random.seed(31415926)
 
@@ -201,26 +201,15 @@ def test_warp_extra_multiband_simple():
 
 
 def test_warp_extra_multiband_3857():
-
     ds1 = RasterDataset.create((2, 517, 516), dtype=np.uint8)
-    ds1.set_bounds(
-        [[2584541.63003097, 6381461.18550703],
-        [2616451.28106481, 6413432.67694985]],
-        epsg=3857
-    )
+    ds1.set_bounds([[2584541.63003097, 6381461.18550703], [2616451.28106481, 6413432.67694985]], epsg=3857)
     ds1[:] = 255
     ds1[0, :, :] = 1
     ds1[1, :, :] = 2
     ds1.nodata = [255, 255]
 
     ds2 = RasterDataset.create((2, 517, 516), dtype=np.uint8)
-    ds2.set_bounds(
-        [
-            [2585456.81116125, 6412469.47957801],
-            [2617484.73133488, 6444559.46936438]
-        ],
-        epsg=3857
-    )
+    ds2.set_bounds([[2585456.81116125, 6412469.47957801], [2617484.73133488, 6444559.46936438]], epsg=3857)
     ds2[:] = 255
     ds2[0, :, :] = 3
     ds2[1, :, :] = 4
@@ -239,42 +228,40 @@ def test_warp_cutline():
     ds.nodata = 0
 
     geojson = {
-        "crs": {
-            "properties": {"name": "urn:ogc:def:crs:EPSG::3857"},
-            "type": "name"
-        },
-        "features": [{
-            "geometry": {
-                "coordinates": [[
-                    [2332115.0, 6854380.0],
-                    [2323410.0, 6838275.0],
-                    [2333276.0, 6826088.0],
-                    [2336178.0, 6842628.0],
-                    [2354748.0, 6831021.0],
-                    [2352572.0, 6850607.0],
-                    [2332115.0, 6854380.0]
-                ]],
-                "type": "Polygon"
-            },
-            "id": 0,
-            "properties": {"name": "test"},
-            "type": "Feature"
-        }],
-        "type": "FeatureCollection"
+        "crs": {"properties": {"name": "urn:ogc:def:crs:EPSG::3857"}, "type": "name"},
+        "features": [
+            {
+                "geometry": {
+                    "coordinates": [
+                        [
+                            [2332115.0, 6854380.0],
+                            [2323410.0, 6838275.0],
+                            [2333276.0, 6826088.0],
+                            [2336178.0, 6842628.0],
+                            [2354748.0, 6831021.0],
+                            [2352572.0, 6850607.0],
+                            [2332115.0, 6854380.0],
+                        ]
+                    ],
+                    "type": "Polygon",
+                },
+                "id": 0,
+                "properties": {"name": "test"},
+                "type": "Feature",
+            }
+        ],
+        "type": "FeatureCollection",
     }
 
     vds = VectorDataset.open(json.dumps(geojson))
 
-    ds_warped = ds.warp(
-        resampling=Resampling.near,
-        cutline=vds
-    )
+    ds_warped = ds.warp(resampling=Resampling.near, cutline=vds)
     assert ds_warped.shape == (282, 312)
-    
+
     unique = np.unique(ds_warped[:], return_counts=True)
 
-    assert np.all(unique[0] == [  0,  32,  64, 128, 255])
-    assert np.all(unique[1] == [41494, 15742, 15412,  9333,  6003])
+    assert np.all(unique[0] == [0, 32, 64, 128, 255])
+    assert np.all(unique[1] == [41494, 15742, 15412, 9333, 6003])
 
 
 @pytest.mark.skipif(
