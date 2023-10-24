@@ -4,6 +4,8 @@ import io
 import logging
 import math
 import os
+import tempfile
+
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
@@ -33,7 +35,7 @@ from osgeo.osr import SpatialReference
 from .geometry import GeometryBuilder, srs_from_epsg
 from .geometry import transform as geometry_transform
 from .geometry import transform_by_srs
-from .options import DriverOptions
+from .options import DriverOptions, GeoJSON
 
 try:
     import orjson
@@ -218,7 +220,8 @@ class RasterDataset:
             # crs = SpatialReference()
             # crs.ImportFromEPSG(geoinfo.epsg)
             srs = geoinfo.srs
-            ds.SetSpatialRef(srs)
+            # ds.SetSpatialRef(srs)
+            ds.SetProjection(srs.ExportToWkt())
             ds.SetGeoTransform(geoinfo.transform.to_gdal())
 
     @property
@@ -587,7 +590,7 @@ class RasterDataset:
         """
         vds = VectorDataset.create(self.geoinfo.epsg)
         band = self.ds.GetRasterBand(1)
-        gdal.Polygonize(band, band, vds.layers.first().layer, field_id, [], callback=callback)
+        gdal.Polygonize(band, band, vds.layers.first().ref_layer, field_id, [], callback=callback)
         vds.ds.FlushCache()
         return vds
 
@@ -633,10 +636,12 @@ class RasterDataset:
         out_nodata=None,
         width=None,
         height=None,
+        cutline: VectorDataset = None,
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
         """
+ 
         extra_ds = extra_ds or []
         x_res, y_res = resolution or (None, None)
         out_srs = None
@@ -654,6 +659,21 @@ class RasterDataset:
             out_srs = self.geoinfo.srs
 
         bbox_srs = bbox_srs or srs_from_epsg(bbox_epsg)
+        
+        cutlineDSName = None
+        cutlineLayer = None
+        tmp_file = None
+        if cutline:
+            if len(cutline.layers) > 1:
+                raise ValueError("cutline should have only one layer")
+            cutline_layer = cutline.layers.first()
+            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".geojson")
+            tmp_file_name = tmp_file.name
+            tmp_file.close()
+            vds = VectorDataset(cutline_layer.ref_ds)
+            vds.to_file(tmp_file_name, GeoJSON())
+            cutlineDSName = tmp_file_name
+            cutlineLayer = os.path.split(tmp_file_name)[-1].rsplit(".", maxsplit=1)[0]
 
         ds = gdal.Warp(
             "",
@@ -669,7 +689,15 @@ class RasterDataset:
             dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
             width=width,
             height=height,
+
+            # crop to
+            cutlineDSName=cutlineDSName,
+            cutlineLayer=cutlineLayer,
+            cropToCutline=cutlineLayer is not None,
         )
+        if tmp_file:
+            os.unlink(tmp_file_name)
+
         if ds is None:
             logger.warning("Could not warp dataset")
             return
@@ -817,6 +845,7 @@ class RasterDataset:
         if apply_mask:
             # TODO: sliding window for minizime memory usage
             # TODO: progress callback
+            # TODO: use cutline
             mask_img = mask_ds[:]
             img = warped_ds[:]
             img_upd = img.copy()
@@ -870,18 +899,25 @@ class RasterDataset:
 
 
 class Feature:
-    def __init__(self, feature):
-        self.feature = feature
+
+    __slots__ = ("ref_ds", "ref_feature")
+
+    def __init__(self, ds: gdal.Dataset, feature: ogr.Feature):
+        self.ref_ds = ds
+        self.ref_feature = feature
 
     def __getitem__(self, name: str):
-        return self.feature.items()[name]
+        return self.ref_feature.GetField(name)
 
     def keys(self):
-        return self.feature.keys()
+        return self.ref_feature.keys()
+
+    def items(self):
+        return self.ref_feature.items()
 
     @property
-    def geometry(self):
-        return self.feature.GetGeometryRef()
+    def geometry(self) -> ogr.Geometry:
+        return self.ref_feature.GetGeometryRef()
 
     # TODO
     # def simplify(self, tolerance: int):
@@ -889,35 +925,55 @@ class Feature:
 
 
 class Features:
-    def __init__(self, layer):
-        self.layer = layer
+
+    __slots__ = ("ref_ds", "ref_layer")
+
+    def __init__(self, ds: gdal.Dataset, layer: ogr.Layer):
+        self.ref_ds = ds
+        self.ref_layer = layer
 
     def __len__(self) -> int:
-        return self.layer.GetFeatureCount()
+        return self.ref_layer.GetFeatureCount()
 
     @property
     def size(self):
         return len(self)
 
     def __getitem__(self, idx) -> Feature:
-        return Feature(self.layer.GetFeature(idx))
+        return Feature(self.ref_df, self.ref_layer.GetFeature(idx))
 
 
 class Layer:
-    def __init__(self, layer: ogr.Layer):
-        self.layer = layer
+
+    __slots__ = ("ref_ds", "ref_layer")
+
+    def __init__(self, ds: gdal.Dataset, layer: ogr.Layer):
+        self.ref_layer = layer
+        self.ref_ds = ds
+    
+    @classmethod
+    def by_index(cls, ds: gdal.Dataset, idx: int):
+        return cls(ds, ds.GetLayerByIndex(idx))
+
+    @classmethod
+    def by_name(cls, ds: gdal.Dataset, name: str):
+        return cls(ds, ds.GetLayerByName(name))
 
     @property
     def name(self):
-        return self.layer.GetName()
+        return self.ref_layer.GetName()
 
     @property
     def epsg(self) -> int:
-        return int(self.layer.GetSpatialRef().GetAuthorityCode(None))
+        return int(self.ref_layer.GetSpatialRef().GetAuthorityCode(None))
+    
+    def set_epsg(self, epsg: int):
+        logger.warning("this is not legal way to change epsg")
+        self.ref_layer.GetSpatialRef().ImportFromEPSG(epsg)
 
     @property
     def features(self):
-        return Features(self.layer)
+        return Features(self.ref_ds, self.ref_layer)
 
     def rasterize(self, raster: RasterDataset, all_touched=True, burn_values=None):
         shape = raster.shape
@@ -931,7 +987,7 @@ class Layer:
         gdal.RasterizeLayer(
             raster.ds,
             bands=bands,
-            layer=self.layer,
+            layer=self.ref_layer,
             burn_values=burn_values,
             options=["ALL_TOUCHED={}".format("TRUE" if all_touched else "FALSE")],
         )
@@ -977,21 +1033,19 @@ class Layers:
         self.ds = ds
 
     def first(self):
-        return Layer(self.ds.GetLayerByIndex(0))
+        return Layer.by_index(self.ds, 0)
 
     def __getitem__(self, key: Union[str, int]):
         if isinstance(key, str):
-            fn = self.ds.GetLayerByName
+            return Layer.by_name(self.ds, key)
         elif isinstance(key, int):
-            fn = self.ds.GetLayerByIndex
-        else:
-            raise ValueError("Unsuported type")
-        return Layer(fn(key))
+            return Layer.by_index(self.ds, key)
+        raise ValueError("Unsuported type")
 
     def __iter__(self):
         def _iterator():
             for i in range(len(self)):
-                yield Layer(self.ds.GetLayerByIndex(i))
+                yield Layer(self.ds, self.ds.GetLayerByIndex(i))
 
         return iter(_iterator())
 
@@ -1037,8 +1091,8 @@ class VectorDataset:
     @classmethod
     def create(cls, epsg: int = None):
         mem_id = f"/vsimem/{uuid4()}"
-        drv = ogr.GetDriverByName("MEMORY")
-        ds = drv.CreateDataSource(mem_id)
+        drv: ogr.Driver = ogr.GetDriverByName("MEMORY")
+        ds: gdal.Dataset = drv.CreateDataSource(mem_id)
 
         # geoinfo: GeoInfo = None
         srs = None
@@ -1069,17 +1123,21 @@ class VectorDataset:
         # # field = ogr.FieldDefn('field', ogr.OFTInteger)
         # # layer.CreateField(field)
 
-        driver = ogr.GetDriverByName(options.driver_name)
-        out_ds = driver.CreateDataSource(filename)
+        driver: ogr.Driver = ogr.GetDriverByName(options.driver_name)
+        out_ds: ogr.DataSource = driver.CreateDataSource(filename)
         if out_ds is None:
             # if file already exists and has incorrect format
             # (for example empty) datasource will not created
             driver.DeleteDataSource(filename)
-        out_ds = driver.CreateDataSource(filename)
+            out_ds: ogr.DataSource  = driver.CreateDataSource(filename)
 
-        out_ds.CopyLayer(self.ds.GetLayer(), "geometry", ["OVERWRITE=YES"])
+        assert out_ds is not None
+        for layer in self.layers:
+            out_ds.CopyLayer(layer.ref_layer, layer.name, ["OVERWRITE=YES"])
+
         out_ds.FlushCache()
         out_ds.Destroy()
+
 
     @classmethod
     def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
