@@ -936,7 +936,7 @@ class Features:
         return len(self)
 
     def __getitem__(self, idx) -> Feature:
-        return Feature(self.ref_df, self.ref_layer.GetFeature(idx))
+        return Feature(self.ref_ds, self.ref_layer.GetFeature(idx))
 
 
 class Layer:
