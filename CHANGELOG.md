@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v0.2.2 (2023-10-25)
+### Fix
+* Release ([`94da47c`](https://github.com/habibutsu/gdal-boots/commit/94da47cbdd5cca75e5fc41df77113addf7562a2b))
+
 ## v0.2.1 (2023-08-02)
 ### Fix
 * Add missed options in PNG driver ([`c1efe46`](https://github.com/habibutsu/gdal-boots/commit/c1efe46b1db5ab9bcaa2bed709d5b3341e191028))
