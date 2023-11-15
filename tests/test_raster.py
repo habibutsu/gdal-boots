@@ -136,7 +136,6 @@ def test_vectorize():
                 v_ds.to_file(fd.name, GPKG())
 
             with tempfile.NamedTemporaryFile(suffix=".gpkg") as fd:
-
                 with pytest.raises(RuntimeError):
                     v_ds.to_file(fd.name, GPKG(), overwrite=False)
 

@@ -663,7 +663,6 @@ class RasterDataset:
         cutlineLayer = None
         tmp_file = None
         if cutline:
-
             if isinstance(cutline, str):
                 cutlineDSName = cutline
                 cutlineLayer = os.path.split(cutline)[-1].rsplit(".", maxsplit=1)[0]
