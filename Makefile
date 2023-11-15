@@ -5,7 +5,7 @@ build-wheel:
 # $2 - pip script version
 define run_docker_test =
 	echo "=> test run with GDAL=${1}"
-	docker run --rm -v `pwd`:/workspace -w /workspace osgeo/gdal:ubuntu-small-${1} bash -c '\
+	docker run --rm -ti -v `pwd`:/workspace -w /workspace ghcr.io/osgeo/gdal:ubuntu-small-${1} bash -c '\
 		apt-get update && apt-get install -qq python3-distutils && \
 		curl https://bootstrap.pypa.io/${2}get-pip.py -o /dev/stdout | python3 && \
 		pip install -r requirements-dev.txt && \
@@ -18,6 +18,7 @@ define run_docker_test =
 endef
 
 test_versions = \
+	docker-test/3.7.3 \
 	docker-test/3.6.3 \
 	docker-test/3.5.3 \
 	docker-test/3.4.3 \
@@ -47,6 +48,6 @@ upload:
 delete:
 	curl -u ${ONESOIL_PYPI_USER}:${ONESOIL_PYPI_PASSWORD} \
 		--form ":action=remove_pkg" \
-		--form "name=gdal_boots" \
+		--form "name=gdal-boots" \
 		--form "version=$(VERSION)" \
 		https://pypi.onesoil.ai/

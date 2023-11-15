@@ -621,7 +621,7 @@ class RasterDataset:
 
         return VectorDataset(ds_geom)
 
-    def warp(
+    def warp(  # noqa: C901
         self,
         bbox: Tuple[float, float, float, float] = None,
         bbox_epsg: int = 4326,
@@ -635,7 +635,7 @@ class RasterDataset:
         out_nodata=None,
         width=None,
         height=None,
-        cutline: VectorDataset = None,
+        cutline: VectorDataset | str = None,
     ) -> RasterDataset:
         """
         bbox: (x_min, y_min, x_max, y_max)
@@ -663,16 +663,23 @@ class RasterDataset:
         cutlineLayer = None
         tmp_file = None
         if cutline:
-            if len(cutline.layers) > 1:
-                raise ValueError("cutline should have only one layer")
-            cutline_layer = cutline.layers.first()
-            tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".geojson")
-            tmp_file_name = tmp_file.name
-            tmp_file.close()
-            vds = VectorDataset(cutline_layer.ref_ds)
-            vds.to_file(tmp_file_name, GeoJSON())
-            cutlineDSName = tmp_file_name
-            cutlineLayer = os.path.split(tmp_file_name)[-1].rsplit(".", maxsplit=1)[0]
+
+            if isinstance(cutline, str):
+                cutlineDSName = cutline
+                cutlineLayer = os.path.split(cutline)[-1].rsplit(".", maxsplit=1)[0]
+            elif isinstance(cutline, VectorDataset):
+                if len(cutline.layers) > 1:
+                    raise ValueError("cutline should have only one layer")
+                cutline_layer = cutline.layers.first()
+                tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".geojson")
+                tmp_file_name = tmp_file.name
+                tmp_file.close()
+                vds = VectorDataset(cutline_layer.ref_ds)
+                vds.to_file(tmp_file_name, GeoJSON())
+                cutlineDSName = tmp_file_name
+                cutlineLayer = os.path.split(tmp_file_name)[-1].rsplit(".", maxsplit=1)[0]
+            else:
+                raise ValueError("cutline should be VectorDataset or path to file")
 
         ds = gdal.Warp(
             "",
@@ -1102,7 +1109,7 @@ class VectorDataset:
         # ds_ = gdal.VectorTranslate('', ds_mem, format='MEMORY', **ext_args)
         return obj
 
-    def to_file(self, filename: str, options: DriverOptions):
+    def to_file(self, filename: str, options: DriverOptions, overwrite=True) -> None:
         # # No such file or directory
         # gdal.VectorTranslate('', mem_id, format='MEMORY')
         # gdal.VectorTranslate(filename, self.ds, format='GPKG')
@@ -1117,14 +1124,22 @@ class VectorDataset:
 
         # # field = ogr.FieldDefn('field', ogr.OFTInteger)
         # # layer.CreateField(field)
-
         driver: ogr.Driver = ogr.GetDriverByName(options.driver_name)
-        out_ds: ogr.DataSource = driver.CreateDataSource(filename)
-        if out_ds is None:
+        try:
+            out_ds: ogr.DataSource = driver.CreateDataSource(filename)
+        except RuntimeError as e:
+            if overwrite:
+                out_ds = None
+            else:
+                raise e
+
+        if overwrite and out_ds is None:
             # if file already exists and has incorrect format
             # (for example empty) datasource will not created
             driver.DeleteDataSource(filename)
             out_ds: ogr.DataSource = driver.CreateDataSource(filename)
+        else:
+            raise RuntimeError(gdal.GetLastErrorMsg())
 
         assert out_ds is not None
         for layer in self.layers:

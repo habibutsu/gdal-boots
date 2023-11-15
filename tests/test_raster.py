@@ -135,6 +135,11 @@ def test_vectorize():
             with tempfile.NamedTemporaryFile(suffix=".gpkg") as fd:
                 v_ds.to_file(fd.name, GPKG())
 
+            with tempfile.NamedTemporaryFile(suffix=".gpkg") as fd:
+
+                with pytest.raises(RuntimeError):
+                    v_ds.to_file(fd.name, GPKG(), overwrite=False)
+
 
 def test_memory():
     import json
@@ -162,8 +167,10 @@ def test_memory():
 
     # the new layer can be directly accessed via the handle pipes_mem or as source.GetLayer('pipes'):
     layer = source.GetLayer("pipes")
+    layer.CreateField(ogr.FieldDefn("field", ogr.OFTReal))
+
     for feature in layer:
-        feature.SetField("SOMETHING", 1)
+        feature.SetField("field", 1.0)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         gdal.VectorTranslate(f"{tmp_dir}/test.gpkg", srcdb, format="GPKG")
@@ -257,6 +264,17 @@ def test_warp_cutline():
 
     ds_warped = ds.warp(resampling=Resampling.near, cutline=vds)
     assert ds_warped.shape == (282, 312)
+
+    unique = np.unique(ds_warped[:], return_counts=True)
+
+    assert np.all(unique[0] == [0, 32, 64, 128, 255])
+    assert np.all(unique[1] == [41494, 15742, 15412, 9333, 6003])
+
+    with tempfile.NamedTemporaryFile(suffix=".geojson", mode="w+", delete=False) as fd:
+        json.dump(geojson, fd)
+
+    ds_warped = ds.warp(resampling=Resampling.near, cutline=fd.name)
+    os.unlink(fd.name)
 
     unique = np.unique(ds_warped[:], return_counts=True)
 
