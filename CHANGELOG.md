@@ -2,6 +2,14 @@
 
 <!--next-version-placeholder-->
 
+## v0.3.0 (2023-11-15)
+### Feature
+* Change upper bound gdal version to < 3.8 ([`d8ddd58`](https://github.com/habibutsu/gdal-boots/commit/d8ddd5826b5ca4138d9e9dffbf9c1391c880c812))
+
+### Fix
+* Black ([`053b861`](https://github.com/habibutsu/gdal-boots/commit/053b861e534d5548555af326ac24b13afd7fb491))
+* Update tests ([`6f702b6`](https://github.com/habibutsu/gdal-boots/commit/6f702b6d8c2c82a17a3bad90b7e9823a3e2eb32b))
+
 ## v0.2.2 (2023-10-25)
 ### Fix
 * Release ([`94da47c`](https://github.com/habibutsu/gdal-boots/commit/94da47cbdd5cca75e5fc41df77113addf7562a2b))
