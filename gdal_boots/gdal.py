@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import tempfile
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from numbers import Number
@@ -35,6 +36,7 @@ from .geometry import GeometryBuilder, srs_from_epsg
 from .geometry import transform as geometry_transform
 from .geometry import transform_by_srs
 from .options import DriverOptions, GeoJSON
+from .utils import gdal_version
 
 try:
     import orjson
@@ -560,7 +562,7 @@ class RasterDataset:
         self._mem_id = mem_id
         return self
 
-    def to_bytes(self, options: DriverOptions) -> bytes:
+    def _to_memory(self, options: DriverOptions) -> Union[bytes, bytearray]:
         if not self.ds:
             raise ValueError("dataset was closed")
 
@@ -576,6 +578,20 @@ class RasterDataset:
         gdal.VSIFCloseL(f)
         # Cleanup
         gdal.Unlink(mem_id)
+        return data
+
+    def to_bytes(self, options: DriverOptions) -> bytes:
+        if gdal_version >= (3, 3):
+            warnings.warn("Don't use to_bytes, it's deprecated since gdal 3.3, use to_bytearray instead")
+        data = self._to_memory(options)
+        if isinstance(data, bytearray):
+            data = bytes(data)
+        return data
+
+    def to_bytearray(self, options: DriverOptions) -> bytearray:
+        data = self._to_memory(options)
+        if isinstance(data, bytes):
+            data = bytearray(data)
         return data
 
     def to_vector(self, field_id=-1, callback: Callable[[float, str, Any], None] = None) -> VectorDataset:
