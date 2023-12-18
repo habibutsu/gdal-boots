@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v0.4.0 (2023-12-18)
+### Feature
+* To_bytearray ([`7744389`](https://github.com/habibutsu/gdal-boots/commit/7744389418d7e23e0e000ec22fb6ca588cc9a4ad))
+
 ## v0.3.0 (2023-11-15)
 ### Feature
 * Change upper bound gdal version to < 3.8 ([`d8ddd58`](https://github.com/habibutsu/gdal-boots/commit/d8ddd5826b5ca4138d9e9dffbf9c1391c880c812))
