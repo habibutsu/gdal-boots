@@ -66,6 +66,8 @@ DTYPE_TO_GDAL = {
     int: gdal.GDT_Int32,
     float: gdal.GDT_Float64,
 }
+if gdal_version >= (3, 7):
+    DTYPE_TO_GDAL[np.int8] = gdal.GDT_Int8
 GDAL_TO_DTYPE = {gdal_dtype: dtype for dtype, gdal_dtype in DTYPE_TO_GDAL.items()}
 
 LOG_LEVELS = {
@@ -374,7 +376,15 @@ class RasterDataset:
             res_y = (y.max() - y.min()) / y_size
         self.geoinfo = GeoInfo(epsg=epsg, transform=affine.Affine(res_x, 0.0, x.min(), 0.0, -res_y, y.max()))
 
-    def __getitem__(self, slices: Tuple[slice, slice, slice]):
+    def __getitem__(
+        self,
+        slices: Union[
+            int,
+            slice,
+            Tuple[Union[int, slice], Union[int, slice]],
+            Tuple[Union[int, slice], Union[int, slice], Union[int, slice]],
+        ],
+    ):
         # mem_arr = self.ds.GetVirtualMemArray()
         arr = self.ds.ReadAsArray()
         return arr.__getitem__(slices)
@@ -492,10 +502,12 @@ class RasterDataset:
     @classmethod
     def create(
         cls,
-        shape: Union[Tuple[int, int, int], Tuple[int, int]],
+        shape: Union[Tuple[int, int, int], Tuple[int, int], Tuple[int, ...]],
         dtype=int,
         geoinfo: GeoInfo = None,
     ) -> RasterDataset:
+        if not (2 <= len(shape) <= 3):
+            raise ValueError(f"unsupported {shape=}: allowed only 2 or 3 dimensions")
         if len(shape) > 2:
             bands, height, width = shape
         else:
