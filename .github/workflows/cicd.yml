@@ -20,6 +20,7 @@ jobs:
           - 3.4.3
           - 3.5.3
           - 3.6.3
+          - 3.7.2
     runs-on: ubuntu-latest
     container: osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
     steps:

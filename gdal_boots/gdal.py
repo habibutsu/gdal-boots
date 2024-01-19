@@ -66,6 +66,8 @@ DTYPE_TO_GDAL = {
     int: gdal.GDT_Int32,
     float: gdal.GDT_Float64,
 }
+if gdal_version >= (3, 7):
+    DTYPE_TO_GDAL[np.int8] = gdal.GDT_Int8
 GDAL_TO_DTYPE = {gdal_dtype: dtype for dtype, gdal_dtype in DTYPE_TO_GDAL.items()}
 
 LOG_LEVELS = {
