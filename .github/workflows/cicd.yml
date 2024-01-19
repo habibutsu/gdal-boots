@@ -22,7 +22,7 @@ jobs:
           - 3.6.3
           - 3.7.2
     runs-on: ubuntu-latest
-    container: osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
+    container: ghcr.io/osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
