@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v0.4.2 (2024-03-13)
+### Fix
+* Release ([`8c0822f`](https://github.com/habibutsu/gdal-boots/commit/8c0822f60f8ec78d20249b088d56354f20ab7fb9))
+
 ## v0.4.1 (2024-01-19)
 ### Fix
 * Repo source ([`203e7e0`](https://github.com/habibutsu/gdal-boots/commit/203e7e02cd7a35e6b04b1bb4266cd3407fc84864))
