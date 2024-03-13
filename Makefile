@@ -18,6 +18,7 @@ define run_docker_test =
 endef
 
 test_versions = \
+	docker-test/3.8.3 \
 	docker-test/3.7.3 \
 	docker-test/3.6.3 \
 	docker-test/3.5.3 \
