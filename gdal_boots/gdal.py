@@ -940,6 +940,9 @@ class Feature:
     def __getitem__(self, name: str):
         return self.ref_feature.GetField(name)
 
+    def __setitem__(self, name: str, value):
+        self.ref_feature.SetField(name, value)
+
     def keys(self):
         return self.ref_feature.keys()
 
@@ -947,8 +950,15 @@ class Feature:
         return self.ref_feature.items()
 
     @property
+    def fid(self) -> int:
+        return self.ref_feature.GetFID()
+
+    @property
     def geometry(self) -> ogr.Geometry:
         return self.ref_feature.GetGeometryRef()
+
+    def bounds(self):
+        return self.ref_feature.GetGeometryRef().GetEnvelope()
 
     # TODO
     # def simplify(self, tolerance: int):
@@ -970,7 +980,24 @@ class Features:
         return len(self)
 
     def __getitem__(self, idx) -> Feature:
-        return Feature(self.ref_ds, self.ref_layer.GetFeature(idx))
+        feature = self.ref_layer.GetFeature(idx)
+        if feature is None:
+            raise IndexError(idx)
+        return Feature(self.ref_ds, feature)
+
+    def __setitem__(self, idx, feature: Feature):
+        self.ref_layer.SetFeature(feature.ref_feature)
+
+
+FIELD_TYPES = {
+    bool: ogr.OFSTBoolean,
+    int: ogr.OFTInteger,
+    float: ogr.OFTReal,
+    str: ogr.OFTString,
+    dict: ogr.OFTString,
+}
+
+INV_FIELD_TYPES = {v: k for k, v in FIELD_TYPES.items() if k is not dict}
 
 
 class Layer:
@@ -1003,6 +1030,37 @@ class Layer:
     @property
     def features(self):
         return Features(self.ref_ds, self.ref_layer)
+
+    @property
+    def field_names(self):
+        layer_def: ogr.FeatureDefn = self.ref_layer.GetLayerDefn()
+        fields_count = layer_def.GetFieldCount()
+        result = []
+        for i in range(fields_count):
+            field_def: ogr.FieldDefn = layer_def.GetFieldDefn(i)
+            result.append(field_def.GetName())
+        return result
+
+    @property
+    def field_types(self):
+        layer_def: ogr.FeatureDefn = self.ref_layer.GetLayerDefn()
+        fields_count = layer_def.GetFieldCount()
+        result = []
+        for i in range(fields_count):
+            field_def: ogr.FieldDefn = layer_def.GetFieldDefn(i)
+            result.append(INV_FIELD_TYPES[field_def.GetType()])
+        return result
+
+    def add_field(self, name: str, field_type: bool, width: int = None, precision: int = None):
+        field = ogr.FieldDefn(name, FIELD_TYPES[field_type])
+        if field_type is dict:
+            field.SetSubType(ogr.OFSTJSON)
+
+        if width:
+            field.SetWidth(width)
+        if precision:
+            field.SetPrecision(precision)
+        self.ref_layer.CreateField(field)
 
     def rasterize(self, raster: RasterDataset, all_touched=True, burn_values=None):
         shape = raster.shape
@@ -1089,8 +1147,17 @@ class Layers:
 class VectorDataset:
     # https://livebook.manning.com/book/geoprocessing-with-python/chapter-3/1
 
+    class GeometryType(Enum):
+        Point = ogr.wkbPoint
+        LineString = ogr.wkbLineString
+        Polygon = ogr.wkbPolygon
+        MultiPoint = ogr.wkbMultiPoint
+        MultiLineString = ogr.wkbMultiLineString
+        MultiPolygon = ogr.wkbMultiPolygon
+        GeometryCollection = ogr.wkbGeometryCollection
+
     def __init__(self, ds):
-        self.ds = ds
+        self.ds: ogr.DataSource | gdal.Dataset = ds
         # self.layers = None
         self._mem_id = None
 
@@ -1118,23 +1185,22 @@ class VectorDataset:
         return cls(ds)
 
     @classmethod
-    def create(cls, epsg: int = None):
+    def create(cls):
         mem_id = f"/vsimem/{uuid4()}"
         drv: ogr.Driver = ogr.GetDriverByName("MEMORY")
-        ds: gdal.Dataset = drv.CreateDataSource(mem_id)
-
-        # geoinfo: GeoInfo = None
-        srs = None
-        if epsg:
-            srs = SpatialReference()
-            srs.ImportFromEPSG(epsg)
-        ds.CreateLayer("geometry", srs=srs)
-        # gdal.FileFromMemBuffer(mem_id, data)
-        # ds = gdal.OpenEx(mem_id, gdal.GA_ReadOnly)
+        ds: ogr.DataSource = drv.CreateDataSource(mem_id)
         obj = cls(ds)
         obj._mem_id = mem_id
         # ds_ = gdal.VectorTranslate('', ds_mem, format='MEMORY', **ext_args)
         return obj
+
+    def add_layer(self, name: str, geom_type: GeometryType, epsg: int = None) -> Layer:
+        srs = None
+        if epsg:
+            srs = SpatialReference()
+            srs.ImportFromEPSG(epsg)
+        layer = self.ds.CreateLayer(name, geom_type=geom_type.value, srs=srs)
+        return Layer(self.ds, layer)
 
     def to_file(self, filename: str, options: DriverOptions, overwrite=True) -> None:
         # # No such file or directory
@@ -1176,7 +1242,7 @@ class VectorDataset:
         out_ds.Destroy()
 
     @classmethod
-    def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> RasterDataset:
+    def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> "VectorDataset":
         mem_id = f"/vsimem/{uuid4()}"
         if ext:
             mem_id = f"{mem_id}.{ext}"
@@ -1207,3 +1273,18 @@ class VectorDataset:
 
     def union(self, other):
         pass
+
+    def __del__(self):
+        if type(self.ds) == ogr.DataSource:
+            self.ds.Destroy()
+            self.ds = None
+            if self._mem_id:
+                # gdal.Unlink(self._mem_id)
+                self._mem_id = None
+        else:
+            self.ds.FlushCache()
+            self.ds = None
+            if self._mem_id:
+                gdal.Unlink(self._mem_id)
+                self._mem_id = None
+        self.ds = None

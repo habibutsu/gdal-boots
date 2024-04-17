@@ -62,3 +62,15 @@ def test_rasterize_basic():
 
     vect_ds.rasterize(mask_ds, all_touched=True)
     assert mask_ds[:25, :60].all()
+
+
+def test_fields():
+
+    vds = VectorDataset.create()
+
+    layer = vds.add_layer("test-layer", VectorDataset.GeometryType.Point, 3857)
+    layer.add_field("string_property", str)
+    layer.add_field("int_property", int)
+
+    assert layer.field_names == ["string_property", "int_property"]
+    assert layer.field_types == [str, int]
