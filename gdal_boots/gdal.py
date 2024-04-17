@@ -615,7 +615,8 @@ class RasterDataset:
         https://gis.stackexchange.com/questions/328358/gdal-warp-memory-datasource-as-cutline
 
         """
-        vds = VectorDataset.create(self.geoinfo.epsg)
+        vds = VectorDataset.create()
+        vds.add_layer("test", VectorDataset.GeometryType.Polygon, self.geoinfo.epsg)
         band = self.ds.GetRasterBand(1)
         gdal.Polygonize(band, band, vds.layers.first().ref_layer, field_id, [], callback=callback)
         vds.ds.FlushCache()
