@@ -22,8 +22,28 @@ def test_read_from_bytes(minsk_boundary_gpkg):
     with open(minsk_boundary_gpkg, "rb") as fd:
         data = fd.read()
 
-    ds = VectorDataset.from_bytes(data)
-    assert len(ds.layers) == 5
+    vds = VectorDataset.from_bytes(data)
+    assert len(vds.layers) == 5
+
+    layer = vds.layers.first()
+
+    count = 0
+    for feature in layer.features:
+        assert feature.keys() == [
+            "osm_id",
+            "name",
+            "barrier",
+            "highway",
+            "ref",
+            "address",
+            "is_in",
+            "place",
+            "man_made",
+            "other_tags",
+        ]
+        count += 1
+
+    assert count == 7
 
 
 @pytest.mark.skipif(

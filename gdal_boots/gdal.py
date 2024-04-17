@@ -975,6 +975,10 @@ class Features:
     def __len__(self) -> int:
         return self.ref_layer.GetFeatureCount()
 
+    def __iter__(self):
+        for feature in self.ref_layer:
+            yield Feature(self.ref_ds, feature)
+
     @property
     def size(self):
         return len(self)
@@ -1275,7 +1279,7 @@ class VectorDataset:
         pass
 
     def __del__(self):
-        if type(self.ds) == ogr.DataSource:
+        if type(self.ds) is ogr.DataSource:
             self.ds.Destroy()
             self.ds = None
             if self._mem_id:
