@@ -2,6 +2,14 @@
 
 <!--next-version-placeholder-->
 
+## v0.5.0 (2024-04-17)
+### Feature
+* Enhancements to Feature and VectorDataset ([`af42285`](https://github.com/habibutsu/gdal-boots/commit/af42285927d2c1ef68502f8ca1e4686d05735b1d))
+
+### Fix
+* VectorDataset.create does not use arguments ([`5925cae`](https://github.com/habibutsu/gdal-boots/commit/5925cae38676d56ec2a1d7d3dcd219179c64038c))
+* Feature iterator, lint ([`4e6c0a9`](https://github.com/habibutsu/gdal-boots/commit/4e6c0a9c35de953f13210c18523a798727ab4480))
+
 ## v0.4.2 (2024-03-13)
 ### Fix
 * Release ([`8c0822f`](https://github.com/habibutsu/gdal-boots/commit/8c0822f60f8ec78d20249b088d56354f20ab7fb9))
