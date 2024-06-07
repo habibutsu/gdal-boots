@@ -2,6 +2,14 @@
 
 <!--next-version-placeholder-->
 
+## v0.6.0 (2024-06-07)
+### Feature
+* Add  method in VectorDataset ([`a7c00b5`](https://github.com/habibutsu/gdal-boots/commit/a7c00b57ad2b9a5845771fdd8a6259ac65d7ab0d))
+
+### Fix
+* Backward compatibility ([`20590f6`](https://github.com/habibutsu/gdal-boots/commit/20590f6bd4fd902c3f98b82f724a64f0bff48efb))
+* Typing ([`2de25d7`](https://github.com/habibutsu/gdal-boots/commit/2de25d7525e246bbec3f4f80372a8859557ce368))
+
 ## v0.5.0 (2024-04-17)
 ### Feature
 * Enhancements to Feature and VectorDataset ([`af42285`](https://github.com/habibutsu/gdal-boots/commit/af42285927d2c1ef68502f8ca1e4686d05735b1d))
