@@ -1311,7 +1311,7 @@ class VectorDataset:
 
             output_layer_defn = output_layer.ref_layer.GetLayerDefn()
             # Reproject and copy the features from the input layer to the output layer
-            for feature in cast(list[ogr.Feature], layer.ref_layer):
+            for feature in cast(List[ogr.Feature], layer.ref_layer):
                 geom: ogr.Geometry = feature.GetGeometryRef()
                 geom.Transform(transform)
 
