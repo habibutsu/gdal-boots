@@ -18,6 +18,20 @@ def test_open_file(minsk_boundary_geojson):
     assert ds.layers[0].features[0]["name:en"] == "Minsk"
 
 
+def test_to_epsg_gpkg(minsk_boundary_gpkg):
+    vds = VectorDataset.open(minsk_boundary_gpkg)
+    vds_3857 = vds.to_epsg(3857)
+    with tempfile.NamedTemporaryFile(suffix=".gpkg") as fd:
+        vds_3857.to_file(fd.name, options.GPKG())
+
+
+def test_to_epsg_geojson(minsk_boundary_geojson):
+    vds = VectorDataset.open(minsk_boundary_geojson)
+    vds_3857 = vds.to_epsg(3857)
+    with tempfile.NamedTemporaryFile(suffix=".geojson") as fd:
+        vds_3857.to_file(fd.name, options.GPKG())
+
+
 def test_read_from_bytes(minsk_boundary_gpkg):
     with open(minsk_boundary_gpkg, "rb") as fd:
         data = fd.read()
