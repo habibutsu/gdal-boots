@@ -616,7 +616,7 @@ class RasterDataset:
 
         """
         vds = VectorDataset.create()
-        vds.add_layer("test", VectorDataset.GeometryType.Polygon, self.geoinfo.epsg)
+        vds.add_layer("test", GeometryType.Polygon, self.geoinfo.epsg)
         band = self.ds.GetRasterBand(1)
         gdal.Polygonize(band, band, vds.layers.first().ref_layer, field_id, [], callback=callback)
         vds.ds.FlushCache()
@@ -1173,6 +1173,8 @@ class Layers:
 
 class VectorDataset:
     # https://livebook.manning.com/book/geoprocessing-with-python/chapter-3/1
+
+    GeometryType = GeometryType
 
     def __init__(self, ds):
         self.ds: ogr.DataSource | gdal.Dataset = ds
