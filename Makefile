@@ -1,6 +1,10 @@
 build-wheel:
 	python setup.py bdist_wheel
 
+
+build-wheel-uv:
+	uv run python setup.py bdist_wheel
+
 # $1 - gdal version
 # $2 - pip script version
 define run_docker_test =
