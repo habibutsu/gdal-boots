@@ -50,6 +50,14 @@ upload:
 		dist/*
 
 
+upload-uv:
+	uv run twine upload \
+		--repository-url https://pypi.onesoil.ai/ \
+		-u ${ONESOIL_PYPI_USER} \
+		-p ${ONESOIL_PYPI_PASSWORD} \
+		dist/*
+
+
 delete:
 	curl -u ${ONESOIL_PYPI_USER}:${ONESOIL_PYPI_PASSWORD} \
 		--form ":action=remove_pkg" \

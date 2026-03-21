@@ -1,13 +1,13 @@
 [project]
 name = "gdal-boots"
-version = "0.6.1"
+version = "0.6.2"
 description = "python friendly wrapper over GDAL"
 readme = "readme.md"
 requires-python = ">=3.12"
 dependencies = [
-    "affine>=2.4.0",
-    "gdal>=3.12.3.1",
-    "numpy>=2.4.3",
+    "affine",
+    "gdal>=3.8",
+    "numpy",
 
     # "gdal==3.8.4",
     # "numpy>=1.22,<2.0",
@@ -58,4 +58,5 @@ dev = [
     "shapely>=2.1.2",
     "threadpoolctl>=3.6.0",
     "tqdm>=4.67.3",
+    "twine>=6.2.0",
 ]
