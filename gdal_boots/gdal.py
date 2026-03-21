@@ -709,24 +709,35 @@ class RasterDataset:
             else:
                 raise ValueError("cutline should be VectorDataset or path to file")
 
-        ds = gdal.Warp(
-            "",
-            [other.ds for other in extra_ds] + [self.ds],
+        warp_options = dict(
             dstSRS=out_srs,
-            xRes=x_res,
-            yRes=y_res,
             outputBounds=bbox,  # (minX, minY, maxX, maxY)
             outputBoundsSRS=None if bbox is None else bbox_srs,
             resampleAlg=resampling.value,
             format="MEM",
-            srcNodata=self.nodata[0] if self.nodata[0] else nodata,
-            dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
-            width=width,
-            height=height,
-            # crop to
             cutlineDSName=cutlineDSName,
             cutlineLayer=cutlineLayer,
             cropToCutline=cutlineLayer is not None,
+        )
+        if x_res is not None:
+            warp_options["xRes"] = x_res
+        if y_res is not None:
+            warp_options["yRes"] = y_res
+        if width is not None:
+            warp_options["width"] = width
+        if height is not None:
+            warp_options["height"] = height
+        src_nodata = self.nodata[0] if self.nodata[0] is not None else nodata
+        dst_nodata = self.nodata[0] if self.nodata[0] is not None else out_nodata
+        if src_nodata is not None:
+            warp_options["srcNodata"] = src_nodata
+        if dst_nodata is not None:
+            warp_options["dstNodata"] = dst_nodata
+
+        ds = gdal.Warp(
+            "",
+            [other.ds for other in extra_ds] + [self.ds],
+            **warp_options,
         )
         if tmp_file:
             os.unlink(tmp_file_name)
