@@ -1,6 +1,10 @@
 build-wheel:
 	python setup.py bdist_wheel
 
+
+build-wheel-uv:
+	uv run python setup.py bdist_wheel
+
 # $1 - gdal version
 # $2 - pip script version
 define run_docker_test =
@@ -40,6 +44,14 @@ docker-test: $(test_versions)
 upload:
 	twine upload \
 		--skip-existing \
+		--repository-url https://pypi.onesoil.ai/ \
+		-u ${ONESOIL_PYPI_USER} \
+		-p ${ONESOIL_PYPI_PASSWORD} \
+		dist/*
+
+
+upload-uv:
+	uv run twine upload \
 		--repository-url https://pypi.onesoil.ai/ \
 		-u ${ONESOIL_PYPI_USER} \
 		-p ${ONESOIL_PYPI_PASSWORD} \

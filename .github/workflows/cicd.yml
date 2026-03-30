@@ -14,14 +14,9 @@ jobs:
     strategy:
       matrix:
         image_tag_version:
-          - 3.1.3
-          - 3.2.3
-          - 3.3.3
-          - 3.4.3
-          - 3.5.3
-          - 3.6.3
-          - 3.7.2
-          - 3.8.3
+          - 3.8.4
+          - 3.12.3
+          
     runs-on: ubuntu-latest
     container: ghcr.io/osgeo/gdal:ubuntu-small-${{ matrix.image_tag_version }}
     steps:
@@ -30,6 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          export PIP_BREAK_SYSTEM_PACKAGES=1
           apt-get update
           apt-get install -y --no-install-recommends git python3-pip
           pip3 install setuptools
@@ -62,10 +58,11 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.11
+          python-version: 3.12
 
       - name: Configuring
         run: |
+          export PIP_BREAK_SYSTEM_PACKAGES=1
           pip install python-semantic-release==7.31.3
           git fetch --tags
           git config --global user.name "semantic-release"

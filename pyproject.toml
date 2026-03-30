@@ -1,3 +1,24 @@
+[project]
+name = "gdal-boots"
+version = "0.6.2"
+description = "python friendly wrapper over GDAL"
+readme = "readme.md"
+requires-python = ">=3.12"
+dependencies = [
+    "affine",
+    "gdal>=3.8",
+    "numpy",
+
+    # "gdal==3.8.4",
+    # "numpy>=1.22,<2.0",
+    # "affine>=2.4.0",
+]
+
+[tool.uv]
+find-links = [
+    "https://girder.github.io/large_image_wheels",
+]
+
 [tool.black]
 line-length = 120
 exclude = '''
@@ -25,3 +46,17 @@ exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 120
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+    "ipywidgets>=8.1.8",
+    "matplotlib>=3.10.8",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "setuptools>=82.0.1",
+    "shapely>=2.1.2",
+    "threadpoolctl>=3.6.0",
+    "tqdm>=4.67.3",
+    "twine>=6.2.0",
+]

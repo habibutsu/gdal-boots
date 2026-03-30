@@ -644,7 +644,7 @@ class RasterDataset:
 
         ds_geom = gdal.VectorTranslate("", mem_id, format="Memory")
         # gdal.VectorTranslate('test.gpkg', ds_geom, format='GPKG')
-        ds.Destroy()
+        ds.Close() if hasattr(ds, "Close") else ds.Destroy()
 
         gdal.VectorTranslate("test.gpkg", ds, format="GPKG")
 
@@ -709,24 +709,35 @@ class RasterDataset:
             else:
                 raise ValueError("cutline should be VectorDataset or path to file")
 
-        ds = gdal.Warp(
-            "",
-            [other.ds for other in extra_ds] + [self.ds],
+        warp_options = dict(
             dstSRS=out_srs,
-            xRes=x_res,
-            yRes=y_res,
             outputBounds=bbox,  # (minX, minY, maxX, maxY)
             outputBoundsSRS=None if bbox is None else bbox_srs,
             resampleAlg=resampling.value,
             format="MEM",
-            srcNodata=self.nodata[0] if self.nodata[0] else nodata,
-            dstNodata=self.nodata[0] if self.nodata[0] else out_nodata,
-            width=width,
-            height=height,
-            # crop to
             cutlineDSName=cutlineDSName,
             cutlineLayer=cutlineLayer,
             cropToCutline=cutlineLayer is not None,
+        )
+        if x_res is not None:
+            warp_options["xRes"] = x_res
+        if y_res is not None:
+            warp_options["yRes"] = y_res
+        if width is not None:
+            warp_options["width"] = width
+        if height is not None:
+            warp_options["height"] = height
+        src_nodata = self.nodata[0] if self.nodata[0] is not None else nodata
+        dst_nodata = self.nodata[0] if self.nodata[0] is not None else out_nodata
+        if src_nodata is not None:
+            warp_options["srcNodata"] = src_nodata
+        if dst_nodata is not None:
+            warp_options["dstNodata"] = dst_nodata
+
+        ds = gdal.Warp(
+            "",
+            [other.ds for other in extra_ds] + [self.ds],
+            **warp_options,
         )
         if tmp_file:
             os.unlink(tmp_file_name)
@@ -1260,7 +1271,7 @@ class VectorDataset:
             out_ds.CopyLayer(layer.ref_layer, layer.name, ["OVERWRITE=YES"])
 
         out_ds.FlushCache()
-        out_ds.Destroy()
+        out_ds.Close() if hasattr(out_ds, "Close") else out_ds.Destroy()
 
     @classmethod
     def from_bytes(cls, data: bytes, open_flag=gdal.OF_VECTOR | gdal.GA_ReadOnly, ext=None) -> "VectorDataset":
@@ -1326,16 +1337,20 @@ class VectorDataset:
         return result_vds
 
     def __del__(self):
-        if type(self.ds) is ogr.DataSource:
-            self.ds.Destroy()
+        if self.ds is None:
+            return
+        try:
+            if type(self.ds) is ogr.DataSource:
+                if hasattr(self.ds, "Close"):
+                    self.ds.Close()
+                else:
+                    self.ds.Destroy()
+            else:
+                self.ds.FlushCache()
+                if self._mem_id:
+                    gdal.Unlink(self._mem_id)
+        except Exception:
+            pass
+        finally:
             self.ds = None
-            if self._mem_id:
-                # gdal.Unlink(self._mem_id)
-                self._mem_id = None
-        else:
-            self.ds.FlushCache()
-            self.ds = None
-            if self._mem_id:
-                gdal.Unlink(self._mem_id)
-                self._mem_id = None
-        self.ds = None
+            self._mem_id = None
